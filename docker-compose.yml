@@ -1,0 +1,77 @@
+version: "3.9"
+
+services:
+
+  # Dashboard Next.js
+  dash:
+    build:
+      context: .
+      dockerfile: apps/dash/Dockerfile
+    container_name: ek24_dash
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/dash/.next
+    depends_on:
+      - api
+    networks:
+      - ek24_net
+
+  # Game Vite + WebGL
+  game:
+    build:
+      context: .
+      dockerfile: apps/game/Dockerfile
+    container_name: ek24_game
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    networks:
+      - ek24_net
+
+  # API Python FastAPI
+  api:
+    build:
+      context: apps/agent
+      dockerfile: Dockerfile
+    container_name: ek24_agent
+    ports:
+      - "8000:8000"
+    environment:
+      - ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/ek24_db
+    volumes:
+      - ./apps/api:/app
+    depends_on:
+      - db
+    networks:
+      - ek24_net
+
+  # PostgreSQL
+  db:
+    image: postgres:16-alpine
+    container_name: ek24_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=ek24_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ek24_net
+
+volumes:
+  postgres_data:
+
+networks:
+  ek24_net:
+    driver: bridge
