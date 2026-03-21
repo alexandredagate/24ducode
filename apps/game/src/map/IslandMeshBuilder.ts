@@ -66,7 +66,7 @@ function buildIslandMesh(
   group: CellGroup,
   _grid: Grid,
   step: number,
-  tileSize: number,
+  _tileSize: number,
   originX: number,
   originZ: number,
   mat: StandardMaterial,
@@ -75,8 +75,8 @@ function buildIslandMesh(
   const islandSet = new Set<string>();
   for (const [r, c] of group.cells) islandSet.add(`${r}_${c}`);
 
-  const MARGIN = 0.6;
-  const SUBS_PER_CELL = 6;
+  const MARGIN = 0.4;
+  const SUBS_PER_CELL = 8;
   const gw = group.maxCol - group.minCol + 1 + 2 * MARGIN;
   const gh = group.maxRow - group.minRow + 1 + 2 * MARGIN;
   const subs = Math.max(4, Math.round(Math.max(gw, gh) * SUBS_PER_CELL));
@@ -86,19 +86,19 @@ function buildIslandMesh(
   const centerWX = originX + centerGC * step;
   const centerWZ = originZ + centerGR * step;
 
-  const ground = MeshBuilder.CreateGround(`island_ground`, {
+  const ground = MeshBuilder.CreateGround('island_ground', {
     width: gw * step,
     height: gh * step,
     subdivisions: subs,
     updatable: true,
   }, scene);
 
-  ground.position.set(centerWX, 0.25, centerWZ);
+  ground.position.set(centerWX, 0.28, centerWZ);
 
   const positions = ground.getVerticesData(VertexBuffer.PositionKind);
   if (!positions) return null;
 
-  const peakH = Math.min(0.8, tileSize * 0.25 + Math.log(1 + group.cells.length) * 0.15);
+  const peakH = Math.min(_tileSize * 0.40, 0.45);
 
   for (let i = 0; i < positions.length; i += 3) {
     const wx = positions[i] + centerWX;
@@ -112,7 +112,7 @@ function buildIslandMesh(
     const onIsland = islandSet.has(`${nearR}_${nearC}`);
 
     if (!onIsland) {
-      positions[i + 1] = -0.6;
+      positions[i + 1] = -5;
       continue;
     }
 
@@ -128,7 +128,7 @@ function buildIslandMesh(
       }
     }
 
-    const edgeFade = smoothstep((minEdgeDist - 0.35) / 0.6);
+    const edgeFade = smoothstep((minEdgeDist - 0.25) / 0.45);
     const n = noise(wx * 4.3 + 1.7, wz * 3.1 + 5.3) * 0.2 + 0.9;
     positions[i + 1] = peakH * edgeFade * n;
   }
@@ -136,6 +136,7 @@ function buildIslandMesh(
   ground.updateVerticesData(VertexBuffer.PositionKind, positions);
   ground.convertToFlatShadedMesh();
 
+  // Vertex colors basées sur la distance au bord
   const finalPos = ground.getVerticesData(VertexBuffer.PositionKind);
   if (finalPos) {
     const colors: number[] = [];
@@ -167,17 +168,17 @@ function buildIslandMesh(
         }
       }
 
-      if (edgeDist < 0.7) {
+      if (edgeDist < 0.6) {
         colors.push(0.85, 0.78, 0.55, 1);
-      } else if (edgeDist < 1.1) {
-        const t = (edgeDist - 0.7) / 0.4;
+      } else if (edgeDist < 0.9) {
+        const t = (edgeDist - 0.6) / 0.3;
         colors.push(
           0.85 - t * 0.43,
           0.78 - t * 0.13,
           0.55 - t * 0.25,
           1,
         );
-      } else if (edgeDist < 1.8) {
+      } else if (edgeDist < 1.5) {
         colors.push(0.42, 0.65, 0.30, 1);
       } else {
         colors.push(0.28, 0.50, 0.20, 1);
@@ -205,7 +206,8 @@ export function buildIslandMeshes(
 
   const mat = new StandardMaterial('islandMat', scene);
   mat.diffuseColor = Color3.White();
-  mat.specularColor = new Color3(0.05, 0.05, 0.05);
+  mat.specularColor = new Color3(0.15, 0.12, 0.08);
+  mat.specularPower = 8;
   mat.backFaceCulling = false;
 
   const originX = -((cols - 1) / 2) * step;

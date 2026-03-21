@@ -1,72 +1,14 @@
-import { ArcRotateCamera, Color3, Color4, DirectionalLight, Effect, HemisphericLight, MeshBuilder, Scene, ShaderMaterial, Vector3, type Engine } from "babylonjs";
+import { ArcRotateCamera, Color3, DirectionalLight, HemisphericLight, Scene, Vector3, type Engine } from "babylonjs";
 import { parseMap, TileType } from "../utils/parse-map";
 import { createMap } from "../utils/create-map";
 import { createBoat } from "../utils/boat";
 import { createBoatController } from "../utils/boat-controller";
-import mapRaw from "../assets/map.txt?raw";
 import {
     connect, requestMapGrid, onMapUpdate, onBrokerEvent, onShipPosition,
     login, buildShip, getShipLocation, getShipNextLevel,
     getMapMeta, type MapMeta,
 } from "../services/socket";
 import { serverGridToGameMap, serverToGrid } from "../services/map-converter";
-
-function createSkybox(scene: Scene) {
-    Effect.ShadersStore['skyGradientVertexShader'] = `
-        precision highp float;
-        attribute vec3 position;
-        uniform mat4 worldViewProjection;
-        varying vec3 vPosition;
-        void main() {
-            vPosition = position;
-            gl_Position = worldViewProjection * vec4(position, 1.0);
-        }
-    `;
-
-    Effect.ShadersStore['skyGradientFragmentShader'] = `
-        precision highp float;
-        varying vec3 vPosition;
-
-        vec3 lerp3(vec3 a, vec3 b, float t) {
-            return a + (b - a) * clamp(t, 0.0, 1.0);
-        }
-
-        void main() {
-            float t = (normalize(vPosition).y + 1.0) * 0.5;
-
-            vec3 nadir    = vec3(0.04, 0.06, 0.12);
-            vec3 horizon  = vec3(0.55, 0.75, 0.92);
-            vec3 zenith   = vec3(0.25, 0.47, 0.85);
-
-            vec3 color;
-            if (t < 0.45) {
-                color = lerp3(nadir, horizon, t / 0.45);
-            } else if (t < 0.55) {
-                color = horizon;
-            } else {
-                color = lerp3(horizon, zenith, (t - 0.55) / 0.45);
-            }
-
-            gl_FragColor = vec4(color, 1.0);
-        }
-    `;
-
-    const sky = MeshBuilder.CreateBox('skybox', { size: 500 }, scene);
-
-    const mat = new ShaderMaterial('skyGradientMat', scene,
-        { vertex: 'skyGradient', fragment: 'skyGradient' },
-        {
-            attributes: ['position'],
-            uniforms: ['worldViewProjection'],
-        },
-    );
-    mat.backFaceCulling = false;
-
-    sky.material = mat;
-    sky.infiniteDistance = true;
-
-    return sky;
-}
 
 async function authenticatePlayer(): Promise<boolean> {
     const stored = localStorage.getItem('codingGameId');
@@ -87,38 +29,70 @@ async function authenticatePlayer(): Promise<boolean> {
 
 export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Promise<Scene> {
     const scene = new Scene(engine);
-    scene.clearColor = new Color4(0.01, 0.02, 0.06, 1);
     scene.ambientColor = new Color3(0.05, 0.08, 0.15);
+
+    const DEFAULT_ALPHA = -Math.PI / 2;
+    const DEFAULT_BETA = Math.PI / 3.5;
+    const CAMERA_RESET_SPEED = 3.0;
 
     const camera = new ArcRotateCamera(
         'camera',
-        -Math.PI / 2,
-        Math.PI / 3,
-        15,
+        DEFAULT_ALPHA,
+        DEFAULT_BETA,
+        18,
         Vector3.Zero(),
         scene
     );
 
     camera.attachControl(canvas, true);
     camera.lowerRadiusLimit = 4;
-    camera.upperRadiusLimit = 30;
+    camera.upperRadiusLimit = 35;
+    camera.minZ = 0.1;
+    camera.maxZ = 180;
 
     camera.keysUp = [];
     camera.keysDown = [];
     camera.keysLeft = [];
     camera.keysRight = [];
 
-    const hemi = new HemisphericLight('hemi', new Vector3(0, 1, 0), scene);
-    hemi.intensity = 0.6;
-    hemi.diffuse = new Color3(0.7, 0.8, 1.0);
-    hemi.groundColor = new Color3(0.02, 0.06, 0.15);
+    // Auto-reset camera rotation when user releases pointer
+    let pointerDown = false;
+    canvas.addEventListener('pointerdown', () => { pointerDown = true; });
+    canvas.addEventListener('pointerup', () => { pointerDown = false; });
+    canvas.addEventListener('pointerleave', () => { pointerDown = false; });
 
-    const sun = new DirectionalLight('sun', new Vector3(-0.5, -1, 0.3), scene);
-    sun.intensity = 0.8;
+    scene.onBeforeRenderObservable.add(() => {
+        if (pointerDown) return;
+        const dt = scene.getEngine().getDeltaTime() / 1000;
+        const factor = Math.min(1, CAMERA_RESET_SPEED * dt);
+
+        // Lerp alpha back to default
+        let alphaDiff = DEFAULT_ALPHA - camera.alpha;
+        while (alphaDiff > Math.PI)  alphaDiff -= 2 * Math.PI;
+        while (alphaDiff < -Math.PI) alphaDiff += 2 * Math.PI;
+        camera.alpha += alphaDiff * factor;
+
+        // Lerp beta back to default
+        camera.beta += (DEFAULT_BETA - camera.beta) * factor;
+    });
+
+    // Soleil directionnel — éclairage principal chaud
+    const sun = new DirectionalLight('sun', new Vector3(-1, -2, -1), scene);
+    sun.intensity = 1.2;
     sun.diffuse = new Color3(1.0, 0.95, 0.85);
     sun.specular = new Color3(1.0, 0.97, 0.9);
 
-    createSkybox(scene);
+    // Ambiante douce bleu ciel
+    const ambient = new HemisphericLight('ambient', new Vector3(0, 1, 0), scene);
+    ambient.intensity = 0.35;
+    ambient.diffuse = new Color3(0.6, 0.7, 0.9);
+    ambient.groundColor = new Color3(0.2, 0.25, 0.3);
+
+    // Fill light remontante — éclaire les côtés des îles
+    const fill = new HemisphericLight('fill', new Vector3(0, -1, 0), scene);
+    fill.intensity = 0.25;
+    fill.diffuse = new Color3(0.8, 0.65, 0.40);
+    fill.groundColor = new Color3(0.5, 0.40, 0.25);
 
     // ─── Connect & authenticate ──────────────────────
     let serverAvailable = false;
@@ -138,7 +112,7 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
         console.log('[game] server map loaded:', map.cols, 'x', map.rows);
     } catch (err) {
         console.warn('[game] server unavailable, using static fallback', err);
-        map = parseMap(mapRaw);
+        throw err;
     }
 
     let currentMapResult = createMap(scene, engine, map);
@@ -213,13 +187,20 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
             currentMeta,
         );
 
-        // Rebuild map when server broadcasts map:update
+        // Incremental map update when server broadcasts map:update
+        let lastGridHash = '';
         onMapUpdate((gridData) => {
-            console.log('[game] map:update — rebuilding', gridData.width, 'x', gridData.height);
-            currentMapResult.dispose();
+            const gridHash = gridData.grid.join('|');
+            if (gridHash === lastGridHash) {
+                currentMeta = { minX: gridData.minX, maxX: gridData.maxX, minY: gridData.minY, maxY: gridData.maxY };
+                return;
+            }
+            lastGridHash = gridHash;
+
+            console.log('[game] map:update — incremental');
             const newMap = serverGridToGameMap(gridData);
-            currentMapResult = createMap(scene, engine, newMap);
             currentMeta = { minX: gridData.minX, maxX: gridData.maxX, minY: gridData.minY, maxY: gridData.maxY };
+            currentMapResult.applyUpdate(newMap);
             controller.updateMap(newMap, currentMapResult.tileMeshes, currentMeta);
         });
 
@@ -228,6 +209,9 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
             if (currentMeta) {
                 const pos = serverToGrid(data.position.x, data.position.y, currentMeta);
                 controller.setPosition(pos.row, pos.col);
+            }
+            if (data.energy != null) {
+                controller.energy = data.energy;
             }
         });
 

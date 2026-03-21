@@ -6,7 +6,7 @@ import { serverToGrid, gridToServer } from "../services/map-converter";
 const TILE_SIZE = 1.0;
 const MOVE_SPEED = 2.5;
 const ROTATION_SPEED = 8.0;
-const BOAT_Y_OFFSET = 0.55;
+const BOAT_Y_OFFSET = 0.38;
 const MODEL_ROTATION_OFFSET = 0;
 
 const HEADINGS: Record<Direction, number> = {
@@ -188,6 +188,7 @@ export function createBoatController(
     get gridRow() { return gridRow; },
     get gridCol() { return gridCol; },
     get energy() { return energy; },
+    set energy(v: number) { energy = v; },
     boat,
 
     setPosition(row: number, col: number, animate = true) {
@@ -216,27 +217,46 @@ export function createBoatController(
     },
 
     updateMap(newMap: GameMap, newTileMeshes: Map<string, Mesh>, newMeta: MapMeta | null) {
+      // Sauvegarder la position world actuelle avant de changer l'origine
+      const prevWX = worldX;
+      const prevWZ = worldZ;
+
       currentTileMeshes = newTileMeshes;
       mapMeta = newMeta;
       originX = -(newMap.cols - 1) / 2;
       originZ = -(newMap.rows - 1) / 2;
 
-      // Recalculate grid position from server coords, then snap world position
+      // Recalculer la position grille dans le nouveau système de coordonnées
       if (newMeta) {
         const server = gridToServer(gridRow, gridCol, mapMeta!);
-        // mapMeta may have shifted — recalculate grid in new coordinate space
         const pos = serverToGrid(server.x, server.y, newMeta);
         gridRow = pos.row;
         gridCol = pos.col;
       }
 
-      // Snap to new world position (map origin may have shifted)
-      worldX = toWorldX(gridCol);
-      worldZ = toWorldZ(gridRow);
-      targetX = worldX;
-      targetZ = worldZ;
-      boat.position.x = worldX;
-      boat.position.z = worldZ;
+      // Calculer la nouvelle position world cible
+      const newTargetX = toWorldX(gridCol);
+      const newTargetZ = toWorldZ(gridRow);
+
+      // Calculer le décalage d'origine (la grille a peut-être bougé)
+      const shiftX = newTargetX - prevWX;
+      const shiftZ = newTargetZ - prevWZ;
+
+      // Si le décalage est petit (même position logique, juste un recentrage de grille),
+      // ajuster worldX/Z pour que le bateau ne saute pas
+      if (Math.abs(shiftX) < 3 && Math.abs(shiftZ) < 3) {
+        // Animer vers la nouvelle position
+        targetX = newTargetX;
+        targetZ = newTargetZ;
+      } else {
+        // Trop loin — snap immédiat (téléportation)
+        worldX = newTargetX;
+        worldZ = newTargetZ;
+        targetX = newTargetX;
+        targetZ = newTargetZ;
+        boat.position.x = worldX;
+        boat.position.z = worldZ;
+      }
     },
 
     dispose() {
