@@ -2,6 +2,6 @@ export interface Cell {
   id: string;
   x: number;
   y: number;
-  type: "SEA" | "SAND" | "ROCKS";
+  type: "SEA" | "SAND";
   zone: number;
 }
