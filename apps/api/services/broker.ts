@@ -2,27 +2,17 @@ import amqp from "amqplib";
 import type { Server as SocketServer } from "socket.io";
 
 export async function connectBroker(io: SocketServer): Promise<void> {
-  const host = process.env.BROKER_HOST || "b-a5095b9b-3c4d-4fe7-8df1-8031e8808618.mq.eu-west-3.on.aws";
-  const port = process.env.BROKER_PORT || "5671";
-  const user = process.env.BROKER_USER || "";
-  const pass = process.env.BROKER_PASS || "";
-  const queue = process.env.BROKER_QUEUE || "";
-
-  if (!user || !pass || !queue) {
-    console.warn("[broker] missing BROKER_USER, BROKER_PASS or BROKER_QUEUE — skipping");
-    return;
-  }
-
-  const url = `amqps://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}`;
+  const url = "amqp://ekonsilio:410c8b64-913f-46eb-8bc0-7a197c4f506d@b-a5095b9b-3c4d-4fe7-8df1-8031e8808618.mq.eu-west-3.on.aws:5672/";
+  console.log(`[broker] connecting to ${url}`);
 
   try {
-    const connection = await amqp.connect(url);
+    const connection = await amqp.connect(url, { rejectUnauthorized: false });
     const channel = await connection.createChannel();
 
-    await channel.assertQueue(queue, { durable: true });
-    console.log(`[broker] connected — listening on queue "${queue}"`);
+    await channel.assertQueue('user.410c8b64-913f-46eb-8bc0-7a197c4f506d', { durable: true });
+    console.log(`[broker] connected — listening on queue "user.410c8b64-913f-46eb-8bc0-7a197c4f506d"`);
 
-    channel.consume(queue, (msg) => {
+    channel.consume("user.410c8b64-913f-46eb-8bc0-7a197c4f506d", (msg) => {
       if (!msg) return;
 
       let parsed: unknown;
