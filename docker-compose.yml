@@ -50,8 +50,8 @@ services:
       context: apps/agent
       dockerfile: Dockerfile
     container_name: ek24_agent
-    depends_on:
-      - api
+    # depends_on:
+    #   - api
     ports:
       - "8080:8080"
     env_file:

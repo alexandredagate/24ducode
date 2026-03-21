@@ -31,7 +31,8 @@ class SocketIOClient:
             logger.warning("Socket.IO déconnecté")
 
         @self._sio.on("response")
-        async def _on_response(data: dict):
+        async def _on_response(*args):
+            data = args[0] if args else {}
             logger.debug("Réponse : %s", data)
             if self._pending and not self._pending.done():
                 self._pending.set_result(data)

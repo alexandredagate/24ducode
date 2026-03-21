@@ -34,18 +34,18 @@ class AgentV1:
     # ------------------------------------------------------------------
 
     async def run(self) -> None:
-        logger.info("Connexion au serveur de jeu: %s", settings.api_url)
+        logger.info("🌐 Connexion au serveur de jeu: %s", settings.api_url)
         await self.ws.connect(settings.api_url)
-        logger.info("Authentification en cours")
+        logger.info("🔐 Authentification en cours")
         await self._authenticate()
 
         details = await self._send("player:details")
         if details.get("status") == "ok":
-            logger.info("Joueur : %s", details["data"].get("name", "?"))
+            logger.info("🧑‍✈️ Joueur : %s", details["data"].get("name", "?"))
 
         # Assume we start on our home island.
         self.memory.mark_island()
-        logger.info("Position initiale marquée comme île connue")
+        logger.info("🏝️  Position initiale marquée comme île connue")
 
         while True:
             direction = self._pick_direction()
@@ -54,7 +54,7 @@ class AgentV1:
                 continue
 
             logger.debug(
-                "Déplacement choisi: %s | mode_retour=%s | file_retour_restante=%s",
+                "🧭 Déplacement choisi: %s | mode_retour=%s | file_retour_restante=%s",
                 direction,
                 self._returning,
                 len(self._return_queue),
@@ -62,8 +62,10 @@ class AgentV1:
 
             resp = await self._send("ship:move", {"direction": direction})
             if resp.get("status") != "ok":
-                logger.warning("ship:move erreur : %s", resp.get("error"))
-                await asyncio.sleep(1)
+                error = resp.get("error", "")
+                logger.warning("⚠️  ship:move erreur : %s", error)
+                wait = 6.0 if "rapide" in error.lower() or "5000" in error else 1.0
+                await asyncio.sleep(wait)
                 continue
 
             self._process_move(direction, resp["data"])
@@ -80,10 +82,10 @@ class AgentV1:
             raise RuntimeError(f"auth:login échoué : {resp.get('error')}")
         self.ws.set_tokens(resp["data"]["accessToken"],
                            resp["data"]["refreshToken"])
-        logger.info("Authentifié")
+        logger.info("✅ Authentifié")
 
     def _on_return_complete(self) -> None:
-        logger.info("Retour terminé — île atteinte, reprise de l'exploration")
+        logger.info("🏝️  Retour terminé — île atteinte, reprise de l'exploration")
         self._returning = False
         if isinstance(self.strategy, ExplorationV1Strategy):
             self.strategy.reset_vector()
@@ -99,7 +101,7 @@ class AgentV1:
         self._current_zone = data["position"]["zone"]
 
         logger.debug(
-            "→ %s | zone=%s | énergie=%s | cells découvertes=%s",
+            "⛵ %s | zone=%s | énergie=%s | cells découvertes=%s",
             direction,
             self._current_zone,
             data["energy"],
@@ -107,7 +109,7 @@ class AgentV1:
         )
 
         if _is_island(data["position"]):
-            logger.info("Île atteinte : %s", data["position"])
+            logger.info("🏝️  Île atteinte : %s", data["position"])
             self.memory.mark_island()
 
         if not self._returning:
@@ -123,13 +125,13 @@ class AgentV1:
         )
         if energy <= steps_back + settings.energy_buffer:
             logger.info(
-                "Carburant critique (énergie=%s, retour=%s cases) — demi-tour",
+                "⛽ Carburant critique (énergie=%s, retour=%s cases) — demi-tour",
                 energy,
                 steps_back,
             )
             self._returning = True
             self._return_queue = self.memory.return_path()
-            logger.info("Itinéraire retour calculé (%s étapes)",
+            logger.info("🔄 Itinéraire retour calculé (%s étapes)",
                         len(self._return_queue))
 
     def _pick_direction(self) -> str | None:
@@ -142,7 +144,7 @@ class AgentV1:
         logger.debug("Commande envoyée: %s", command)
         resp = await self.ws.send_command(command, payload)
         if resp.get("status") == "error" and "UNAUTHORIZED" in resp.get("error", ""):
-            logger.info("Token expiré — tentative de refresh")
+            logger.info("🔑 Token expiré — tentative de refresh")
             if self.ws._refresh_token:
                 refresh = await self.ws.send_command(
                     "auth:refresh", {"refreshToken": self.ws._refresh_token}
