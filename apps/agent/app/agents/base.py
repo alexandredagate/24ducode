@@ -36,9 +36,11 @@ class BaseAgent(ABC):
         logger.info("🔐 Authentification en cours")
         await self._authenticate()
 
+        self._player_details = None
         details = await self._send("player:details")
         if details.get("status") == "ok":
-            logger.info("🧑‍✈️ Joueur : %s", details["data"].get("name", "?"))
+            self._player_details = details["data"]
+            logger.info("🧑‍✈️ Joueur : %s", self._player_details.get("name", "?"))
 
         if self.world:
             await self.world.refresh()
