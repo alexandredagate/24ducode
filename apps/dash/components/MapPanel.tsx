@@ -11,7 +11,8 @@ interface MapPanelProps {
 const CELL_COLORS: Record<string, string> = {
   "0": "bg-zinc-800", // inconnu
   "1": "bg-blue-600", // eau
-  "2": "bg-yellow-400", // sable
+  "2": "bg-emerald-500", // sable KNOWN
+  "3": "bg-yellow-400", // sable DISCOVERED
 };
 
 export function MapPanel({ mapGrid, shipPosition, onRefresh }: MapPanelProps) {
@@ -41,7 +42,8 @@ export function MapPanel({ mapGrid, shipPosition, onRefresh }: MapPanelProps) {
         <div className="flex items-center gap-3">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400">
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-600" /> Eau</span>
-            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-yellow-400" /> Sable</span>
+            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-emerald-500" /> Île connue</span>
+            <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-yellow-400" /> Île découverte</span>
             <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-zinc-800 border border-zinc-700" /> Inconnu</span>
             {shipPosition && (
               <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-red-500" /> Bateau</span>
@@ -81,7 +83,7 @@ export function MapPanel({ mapGrid, shipPosition, onRefresh }: MapPanelProps) {
                     width: maxCellSize,
                     height: maxCellSize,
                   }}
-                  title={`(${x}, ${y}) ${cell === "0" ? "Inconnu" : cell === "1" ? "Eau" : "Sable"}${isShip ? " — Bateau" : ""}`}
+                  title={`(${x}, ${y}) ${cell === "0" ? "Inconnu" : cell === "1" ? "Eau" : cell === "2" ? "Île connue" : "Île découverte"}${isShip ? " — Bateau" : ""}`}
                 />
               );
             });
