@@ -1,8 +1,14 @@
+# fly.toml app configuration file generated for 24ducode-dash on 2026-03-21T20:58:45+01:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
 app = '24ducode-dash'
 primary_region = 'cdg'
 
 [build]
-  dockerfile = 'apps/dash/Dockerfile'
+  dockerfile = 'Dockerfile'
+
   [build.args]
     NEXT_PUBLIC_API_URL = 'https://24ducode-api.fly.dev'
 
@@ -16,3 +22,4 @@ primary_region = 'cdg'
 [[vm]]
   memory = '512mb'
   cpus = 1
+  memory_mb = 512
