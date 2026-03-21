@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 
-const SOCKET_URL = "http://localhost:3001";
+const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 export type ResourceType = "FERONIUM" | "BOISIUM" | "CHARBONIUM";
 export type Direction = "N" | "S" | "E" | "W" | "NE" | "NW" | "SE" | "SW";

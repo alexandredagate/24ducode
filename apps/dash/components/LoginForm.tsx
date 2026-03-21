@@ -47,7 +47,7 @@ export function LoginForm({ onLogin, connected, error }: LoginFormProps) {
             className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-400" : "bg-yellow-500"} animate-pulse`}
           />
           <span className="text-xs text-zinc-400">
-            {connected ? "Serveur connecté" : "En attente du serveur (localhost:3001)..."}
+            {connected ? "Serveur connecté" : "En attente du serveur..."}
           </span>
         </div>
 
