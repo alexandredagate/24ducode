@@ -25,7 +25,7 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap): MapResult
   const waterCells: TileCell[] = [];
   for (const row of map.cells) {
     for (const cell of row) {
-      if (cell.type === TileType.Water || cell.type === TileType.Island) {
+      if (cell.type === TileType.Water || cell.type === TileType.Island || cell.type === TileType.IslandDiscovered) {
         waterCells.push(cell);
       }
     }
@@ -34,8 +34,13 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap): MapResult
   const waterResult = createWaterTiles(scene, engine, waterCells, getOriginX(), getOriginZ());
   let tileMeshes = waterResult.tileMeshMap;
 
+  // Pour le mesh builder, on traite 2 (KNOWN) et 3 (DISCOVERED) comme des îles
   const numericGrid: number[][] = map.cells.map(row =>
-    row.map(cell => Number(cell.type)),
+    row.map(cell => {
+      const n = Number(cell.type);
+      // Garder 2 et 3 séparés pour que le mesh builder puisse les différencier
+      return n;
+    }),
   );
 
   const islandMeshes: Mesh[] = [...buildIslandMeshes(numericGrid, TILE_SIZE, GAP, scene)];
@@ -92,14 +97,13 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap): MapResult
         // Nouvelle cellule ou type changé
         knownCells.add(key);
 
-        if (cell.type === TileType.Water || cell.type === TileType.Island) {
-          // Vérifier si on a déjà une water tile à cette position
+        if (cell.type === TileType.Water || cell.type === TileType.Island || cell.type === TileType.IslandDiscovered) {
           if (!tileMeshes.has(`${cell.row}_${cell.col}`)) {
             newWaterCells.push(cell);
           }
         }
 
-        if (cell.type === TileType.Island) {
+        if (cell.type === TileType.Island || cell.type === TileType.IslandDiscovered) {
           hasNewIslands = true;
         }
       }
@@ -138,7 +142,7 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap): MapResult
     const newWaterCells: TileCell[] = [];
     for (const row of newMap.cells) {
       for (const cell of row) {
-        if (cell.type === TileType.Water || cell.type === TileType.Island) {
+        if (cell.type === TileType.Water || cell.type === TileType.Island || cell.type === TileType.IslandDiscovered) {
           newWaterCells.push(cell);
         }
       }

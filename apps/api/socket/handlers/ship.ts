@@ -1,6 +1,6 @@
 import type { Socket, Server as SocketServer } from "socket.io";
 import { buildShip, moveShip, getShipNextLevel, upgradeShip } from "../../services/game-api";
-import { upsertCells, getMapGrid, saveShipPosition, getShipPosition, getCellAt } from "../../services/map-store";
+import { upsertCells, getMapGrid, saveShipPosition, getShipPosition, getCellAt, validateDiscoveries } from "../../services/map-store";
 import type { ClientCommand, ServerResponse, Direction, UpgradeShip, Cell } from "types";
 
 const VALID_DIRECTIONS = new Set<Direction>([
@@ -39,20 +39,40 @@ export async function handleShip(
       if (data.position) cellsToSave.push(data.position);
       await upsertCells(cellsToSave);
 
-      const mapGrid = await getMapGrid();
-      io.emit("map:update", { command: "map:update", status: "ok", data: mapGrid });
-
-      // Enrich position with note if present
-      let positionWithNote = data.position;
-      if (data.position) {
-        const cellData = await getCellAt(data.position.x, data.position.y);
-        if (cellData?.note) {
-          positionWithNote = { ...data.position, note: cellData.note };
+      // Si le bateau est sur une île KNOWN → valider toutes les découvertes
+      let validated = 0;
+      if (data.position?.type === "SAND") {
+        const currentCell = await getCellAt(data.position.x, data.position.y);
+        if (currentCell?.discoveryStatus === "KNOWN") {
+          validated = await validateDiscoveries();
+          if (validated > 0) {
+            console.log(`[ship] validated ${validated} discovered cells → KNOWN`);
+          }
         }
       }
 
-      await saveShipPosition(codingGameId, positionWithNote, data.energy);
-      io.emit("ship:position", { position: positionWithNote, energy: data.energy });
+      const mapGrid = await getMapGrid();
+      io.emit("map:update", { command: "map:update", status: "ok", data: mapGrid });
+
+      // Enrich position with note + discoveryStatus
+      let enrichedPosition = data.position;
+      if (data.position) {
+        const cellData = await getCellAt(data.position.x, data.position.y);
+        if (cellData) {
+          enrichedPosition = {
+            ...data.position,
+            ...(cellData.note && { note: cellData.note }),
+            ...(cellData.discoveryStatus && { discoveryStatus: cellData.discoveryStatus }),
+          };
+        }
+      }
+
+      await saveShipPosition(codingGameId, enrichedPosition, data.energy);
+      io.emit("ship:position", {
+        position: enrichedPosition,
+        energy: data.energy,
+        ...(validated > 0 && { validated }),
+      });
 
       return { command: "ship:move", status: "ok", data };
     }
@@ -61,10 +81,13 @@ export async function handleShip(
       const codingGameId = requireAuth(socket);
       const data = await getShipPosition(codingGameId);
       if (!data) throw new Error("No position known yet — move the ship first");
-      // Enrich position with note if present
       const cellInfo = await getCellAt(data.position.x, data.position.y);
-      if (cellInfo?.note) {
-        data.position = { ...data.position, note: cellInfo.note };
+      if (cellInfo) {
+        data.position = {
+          ...data.position,
+          ...(cellInfo.note && { note: cellInfo.note }),
+          ...(cellInfo.discoveryStatus && { discoveryStatus: cellInfo.discoveryStatus }),
+        };
       }
       return { command: "ship:location", status: "ok", data };
     }

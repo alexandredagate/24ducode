@@ -286,11 +286,12 @@ class AgentV2(BaseAgent):
             await self._handle_fine()
         await asyncio.sleep(10.0)
         # Tenter un move pour voir si on est sorti
-        resp = await self._send("ship:move", {"direction": random.choice(_available_dirs(self._current_zone))})
+        direction = random.choice(_available_dirs(self._current_zone))
+        resp = await self._send("ship:move", {"direction": direction})
         if resp.get("status") == "ok":
             logger.info("✅ SORTI DE PANNE SECHE — reprise de l'exploration!")
             self._stranded = False
-            await self._process_move(resp["data"]["position"].get("type", "N"), resp["data"])
+            await self._process_move(direction, resp["data"])
         else:
             logger.info("⏳ Toujours stranded... nouvelle tentative dans 10s")
 
@@ -326,7 +327,7 @@ class AgentV2(BaseAgent):
         buffer = settings.energy_buffer
 
         # --- 1. URGENCE FUEL ---
-        nearest = self._find_nearest_reachable_island(pos, zone)
+        nearest = self._find_nearest_known_island(pos, zone)
         if not nearest:
             nearest = HOME_POSITION
         dist_nearest = _distance(pos["x"], pos["y"], nearest["x"], nearest["y"], zone)
@@ -391,13 +392,14 @@ class AgentV2(BaseAgent):
         self._waypoints.clear()
         self._path_queue.clear()
 
-    def _find_nearest_reachable_island(self, pos: dict, zone: int) -> dict | None:
+    def _find_nearest_known_island(self, pos: dict, zone: int) -> dict | None:
+        """Trouve l'île KNOWN (validée) la plus proche. Seules celles-ci rechargent le fuel."""
         if not self.world:
             return None
-        nearest = self.world.nearest_islands(pos["x"], pos["y"], zone, n=1, same_zone=True)
+        nearest = self.world.nearest_known_islands(pos["x"], pos["y"], zone, n=1, same_zone=True)
         if nearest:
             return nearest[0]
-        nearest = self.world.nearest_islands(pos["x"], pos["y"], zone, n=1)
+        nearest = self.world.nearest_known_islands(pos["x"], pos["y"], zone, n=1)
         if nearest:
             return nearest[0]
         return None
@@ -499,7 +501,7 @@ class AgentV2(BaseAgent):
     ) -> dict | None:
         if not self.world:
             return None
-        islands = self.world.nearest_islands(pos["x"], pos["y"], zone, n=20, same_zone=True)
+        islands = self.world.nearest_known_islands(pos["x"], pos["y"], zone, n=20, same_zone=True)
         direct_dist = _distance(pos["x"], pos["y"], dest["x"], dest["y"], zone)
         best = None
         best_detour = MAX_DETOUR_COST + 1
@@ -583,9 +585,8 @@ class AgentV2(BaseAgent):
         self.memory.mark_island(pos)
         self._island_arrival_count += 1
 
-        # Connue ou nouvelle ?
-        cell = self.world.cell_at(ix, iy) if self.world else None
-        known = cell is not None and is_island(cell)
+        # KNOWN = validée (recharge fuel) vs DISCOVERED = vue mais pas validée
+        known = self.world.is_known_island(ix, iy) if self.world else False
 
         if known:
             self._on_known_island(ix, iy)
@@ -610,7 +611,7 @@ class AgentV2(BaseAgent):
 
         nearest = None
         if self.world:
-            nearest_list = self.world.nearest_islands(
+            nearest_list = self.world.nearest_known_islands(
                 ix, iy, self._current_zone, n=1, same_zone=True,
             )
             if nearest_list:
@@ -835,7 +836,7 @@ class AgentV2(BaseAgent):
     def _retreat_to_nearest_island(self) -> None:
         if not self._current_pos:
             return
-        nearest = self._find_nearest_reachable_island(self._current_pos, self._current_zone)
+        nearest = self._find_nearest_known_island(self._current_pos, self._current_zone)
         if nearest:
             self._set_waypoint(nearest, "error_retreat")
             logger.info("🔙 REPLI → (%s,%s)", nearest["x"], nearest["y"])

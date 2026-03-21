@@ -139,7 +139,7 @@ class AgentV1(BaseAgent):
 
         if self.world:
             await self.world.refresh()
-            nearest = self.world.nearest_islands(
+            nearest = self.world.nearest_known_islands(
                 pos["x"], pos["y"], self._current_zone, n=1, same_zone=True,
             )
             if nearest:

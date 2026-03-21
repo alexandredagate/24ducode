@@ -11,6 +11,11 @@ interface CellGroup {
   maxCol: number;
 }
 
+/** Returns true if the cell value represents an island (KNOWN=2 or DISCOVERED=3) */
+function isIslandCell(val: number): boolean {
+  return val === 2 || val === 3;
+}
+
 function floodFillIslands(grid: Grid): CellGroup[] {
   const rows = grid.length;
   const cols = grid[0]?.length ?? 0;
@@ -19,7 +24,7 @@ function floodFillIslands(grid: Grid): CellGroup[] {
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      if (grid[r][c] !== 2 || visited[r][c]) continue;
+      if (!isIslandCell(grid[r][c]) || visited[r][c]) continue;
 
       const cells: [number, number][] = [];
       const queue: [number, number][] = [[r, c]];
@@ -37,7 +42,7 @@ function floodFillIslands(grid: Grid): CellGroup[] {
         const dirs: [number, number][] = [[-1, 0], [1, 0], [0, -1], [0, 1]];
         for (const [dr, dc] of dirs) {
           const nr = cr + dr, nc = cc + dc;
-          if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !visited[nr][nc] && grid[nr][nc] === 2) {
+          if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !visited[nr][nc] && isIslandCell(grid[nr][nc])) {
             visited[nr][nc] = true;
             queue.push([nr, nc]);
           }
@@ -73,7 +78,13 @@ function buildIslandMesh(
   scene: Scene,
 ): Mesh | null {
   const islandSet = new Set<string>();
-  for (const [r, c] of group.cells) islandSet.add(`${r}_${c}`);
+  const discoveredSet = new Set<string>();
+  for (const [r, c] of group.cells) {
+    islandSet.add(`${r}_${c}`);
+    if (_grid[r]?.[c] === 3) discoveredSet.add(`${r}_${c}`);
+  }
+  // L'île entière est "discovered" si au moins une de ses cellules est DISCOVERED (pas KNOWN)
+  const isDiscoveredIsland = discoveredSet.size > 0;
 
   const MARGIN = 0.4;
   const SUBS_PER_CELL = 8;
@@ -168,20 +179,40 @@ function buildIslandMesh(
         }
       }
 
-      if (edgeDist < 0.6) {
-        colors.push(0.85, 0.78, 0.55, 1);
-      } else if (edgeDist < 0.9) {
-        const t = (edgeDist - 0.6) / 0.3;
-        colors.push(
-          0.85 - t * 0.43,
-          0.78 - t * 0.13,
-          0.55 - t * 0.25,
-          1,
-        );
-      } else if (edgeDist < 1.5) {
-        colors.push(0.42, 0.65, 0.30, 1);
+      if (isDiscoveredIsland) {
+        // DISCOVERED: couleurs orangées/dorées pour signaler "pas encore validée"
+        if (edgeDist < 0.6) {
+          colors.push(0.95, 0.65, 0.25, 1); // sable orange
+        } else if (edgeDist < 0.9) {
+          const t = (edgeDist - 0.6) / 0.3;
+          colors.push(
+            0.95 - t * 0.25,
+            0.65 - t * 0.15,
+            0.25 + t * 0.05,
+            1,
+          );
+        } else if (edgeDist < 1.5) {
+          colors.push(0.70, 0.50, 0.15, 1); // terre ocre
+        } else {
+          colors.push(0.60, 0.40, 0.10, 1); // terre sombre
+        }
       } else {
-        colors.push(0.28, 0.50, 0.20, 1);
+        // KNOWN: couleurs vertes normales
+        if (edgeDist < 0.6) {
+          colors.push(0.85, 0.78, 0.55, 1);
+        } else if (edgeDist < 0.9) {
+          const t = (edgeDist - 0.6) / 0.3;
+          colors.push(
+            0.85 - t * 0.43,
+            0.78 - t * 0.13,
+            0.55 - t * 0.25,
+            1,
+          );
+        } else if (edgeDist < 1.5) {
+          colors.push(0.42, 0.65, 0.30, 1);
+        } else {
+          colors.push(0.28, 0.50, 0.20, 1);
+        }
       }
     }
     ground.setVerticesData(VertexBuffer.ColorKind, colors);

@@ -7,7 +7,7 @@ import type { MapGridData, MapMeta } from './socket';
  * Server grid (map-store.ts):
  *   grid[0]        = y = minY (south)
  *   grid[height-1] = y = maxY (north)
- *   "0" = unknown, "1" = SEA, "2" = SAND
+ *   "0" = unknown, "1" = SEA, "2" = SAND KNOWN, "3" = SAND DISCOVERED
  *
  * Game rendering:
  *   row 0 → z = originZ (most negative Z = north on screen)

@@ -45,9 +45,11 @@ class BaseAgent(ABC):
         if self.world:
             await self.world.refresh()
             logger.info(
-                "🗺️  Carte chargée : %s cellules, %s îles connues",
+                "🗺️  Carte chargée : %s cellules, %s îles (%s KNOWN, %s DISCOVERED)",
                 self.world.cell_count,
                 self.world.island_count,
+                self.world.known_island_count,
+                self.world.island_count - self.world.known_island_count,
             )
 
         await self.loop()
