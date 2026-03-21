@@ -1,0 +1,129 @@
+# flyctl launch added from .gitignore
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Dependencies
+**/node_modules
+**/.pnp
+**/.pnp.js
+
+# Local env files
+**/.env
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+
+# Testing
+**/coverage
+
+# Turbo
+**/.turbo
+
+# Vercel
+**/.vercel
+
+# Build Outputs
+**/.next
+**/out
+**/build
+**/dist
+
+
+# Debug
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
+# Misc
+**/.DS_Store
+**/*.pem
+
+# IDE
+**/.idea
+**/.vscode
+
+
+# Custom
+**/__pycache__
+
+# flyctl launch added from .idea/.gitignore
+# Default ignored files
+.idea/shelf
+.idea/workspace.xml
+# Ignored default folder with query files
+.idea/queries
+# Datasource local storage ignored files
+.idea/dataSources
+.idea/dataSources.local.xml
+# Editor-based HTTP Client requests
+.idea/httpRequests
+
+# flyctl launch added from apps/dash/.gitignore
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+apps/dash/node_modules
+apps/dash/.pnp
+apps/dash/**/.pnp.*
+apps/dash/**/.yarn/*
+!apps/dash/**/.yarn/patches
+!apps/dash/**/.yarn/plugins
+!apps/dash/**/.yarn/releases
+!apps/dash/**/.yarn/versions
+
+# testing
+apps/dash/coverage
+
+# next.js
+apps/dash/.next
+apps/dash/out
+
+# production
+apps/dash/build
+
+# misc
+apps/dash/**/.DS_Store
+apps/dash/**/*.pem
+
+# debug
+apps/dash/**/npm-debug.log*
+apps/dash/**/yarn-debug.log*
+apps/dash/**/yarn-error.log*
+apps/dash/**/.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+apps/dash/**/.env*
+
+# vercel
+apps/dash/**/.vercel
+
+# typescript
+apps/dash/**/*.tsbuildinfo
+apps/dash/**/next-env.d.ts
+
+# flyctl launch added from apps/game/.gitignore
+# Logs
+apps/game/**/logs
+apps/game/**/*.log
+apps/game/**/npm-debug.log*
+apps/game/**/yarn-debug.log*
+apps/game/**/yarn-error.log*
+apps/game/**/pnpm-debug.log*
+apps/game/**/lerna-debug.log*
+
+apps/game/**/node_modules
+apps/game/**/dist
+apps/game/**/dist-ssr
+apps/game/**/*.local
+
+# Editor directories and files
+apps/game/**/.vscode/*
+!apps/game/**/.vscode/extensions.json
+apps/game/**/.idea
+apps/game/**/.DS_Store
+apps/game/**/*.suo
+apps/game/**/*.ntvs*
+apps/game/**/*.njsproj
+apps/game/**/*.sln
+apps/game/**/*.sw?
+fly.toml

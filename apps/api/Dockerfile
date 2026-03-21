@@ -1,12 +1,15 @@
 FROM node:20-alpine
 WORKDIR /app
 
-COPY package.json yarn.lock turbo.json ./
-COPY apps/api/package.json ./apps/api/
-COPY packages/ ./packages/
+# Copy root workspace config
+COPY package.json package-lock.json turbo.json ./
 
-RUN yarn install --frozen-lockfile
+# Copy only the packages & app we need
+COPY packages/types/ ./packages/types/
+COPY apps/api/ ./apps/api/
 
-COPY apps/api ./apps/api
+# Install all deps (workspace-aware, tsx needed at runtime)
+RUN npm ci
 
-CMD ["npm", "run", "turbo", "run", "dev", "--filter=api"]
+EXPOSE 3001
+CMD ["npx", "tsx", "apps/api/index.ts"]

@@ -1,0 +1,42 @@
+# fly.toml app configuration file generated for 24ducode-api on 2026-03-21T19:20:58+01:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = '24ducode-api'
+primary_region = 'cdg'
+
+[build]
+  dockerfile = 'apps/api/Dockerfile'
+
+[http_service]
+  internal_port = 3001
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[services]]
+  protocol = 'tcp'
+  internal_port = 3001
+
+  [[services.ports]]
+    port = 443
+    handlers = ['tls', 'http']
+
+  [[services.ports]]
+    port = 80
+    handlers = ['http']
+
+[checks]
+  [checks.health]
+    port = 3001
+    type = 'http'
+    interval = '30s'
+    timeout = '5s'
+    path = '/health'
+
+[[vm]]
+  memory = '1gb'
+  cpus = 1
+  memory_mb = 1024
