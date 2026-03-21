@@ -1,7 +1,7 @@
 import type { Socket, Server as SocketServer } from "socket.io";
-import { moveShip } from "../../services/game-api";
+import { buildShip, moveShip, getShipNextLevel, upgradeShip } from "../../services/game-api";
 import { upsertCells, getMapGrid } from "../../services/map-store";
-import type { ClientCommand, ServerResponse, Direction, Cell } from "types";
+import type { ClientCommand, ServerResponse, Direction, UpgradeShip, Cell } from "types";
 
 const VALID_DIRECTIONS = new Set<Direction>([
   "N", "S", "E", "W", "NE", "NW", "SE", "SW",
@@ -19,6 +19,12 @@ export async function handleShip(
   io: SocketServer
 ): Promise<ServerResponse> {
   switch (msg.command) {
+    case "ship:build": {
+      const codingGameId = requireAuth(socket);
+      const data = await buildShip(codingGameId);
+      return { command: "ship:build", status: "ok", data };
+    }
+
     case "ship:move": {
       const codingGameId = requireAuth(socket);
       const direction = (msg.payload as { direction: Direction })?.direction;
@@ -29,16 +35,28 @@ export async function handleShip(
       }
       const data = await moveShip(codingGameId, direction);
 
-      // Save discovered cells + current position to DB
       const cellsToSave: Cell[] = [...(data.discoveredCells ?? [])];
       if (data.position) cellsToSave.push(data.position);
       await upsertCells(cellsToSave);
 
-      // Broadcast updated map to all connected clients
       const mapGrid = await getMapGrid();
       io.emit("map:update", { command: "map:update", status: "ok", data: mapGrid });
 
       return { command: "ship:move", status: "ok", data };
+    }
+
+    case "ship:next-level": {
+      const codingGameId = requireAuth(socket);
+      const data = await getShipNextLevel(codingGameId);
+      return { command: "ship:next-level", status: "ok", data };
+    }
+
+    case "ship:upgrade": {
+      const codingGameId = requireAuth(socket);
+      const payload = msg.payload as UpgradeShip;
+      if (!payload?.level) throw new Error("level is required");
+      await upgradeShip(codingGameId, payload);
+      return { command: "ship:upgrade", status: "ok" };
     }
 
     default:

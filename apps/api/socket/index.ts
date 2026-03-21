@@ -5,12 +5,20 @@ import { handleAuth } from "./handlers/auth";
 import { handlePlayer } from "./handlers/player";
 import { handleShip } from "./handlers/ship";
 import { handleMap } from "./handlers/map";
+import { handleTax } from "./handlers/tax";
+import { handleStorage } from "./handlers/storage";
+import { handleMarketplace } from "./handlers/marketplace";
+import { handleTheft } from "./handlers/theft";
 import type { ClientCommand, ServerResponse, CommandName } from "types";
 
 const AUTH_COMMANDS = new Set<CommandName>(["auth:login", "auth:refresh", "auth:logout"]);
 const PLAYER_COMMANDS = new Set<CommandName>(["player:details", "player:resources"]);
-const SHIP_COMMANDS = new Set<CommandName>(["ship:move"]);
+const SHIP_COMMANDS = new Set<CommandName>(["ship:build", "ship:move", "ship:next-level", "ship:upgrade"]);
 const MAP_COMMANDS = new Set<CommandName>(["map:grid"]);
+const TAX_COMMANDS = new Set<CommandName>(["tax:list", "tax:pay"]);
+const STORAGE_COMMANDS = new Set<CommandName>(["storage:next-level", "storage:upgrade"]);
+const MARKETPLACE_COMMANDS = new Set<CommandName>(["marketplace:offers", "marketplace:offer", "marketplace:create-offer", "marketplace:update-offer", "marketplace:delete-offer", "marketplace:purchase"]);
+const THEFT_COMMANDS = new Set<CommandName>(["theft:list", "theft:attack"]);
 
 export function createSocketServer(httpServer: HttpServer): SocketServer {
   const io = new SocketServer(httpServer, {
@@ -19,7 +27,7 @@ export function createSocketServer(httpServer: HttpServer): SocketServer {
       methods: ["GET", "POST"],
     },
     connectionStateRecovery: {
-      maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
+      maxDisconnectionDuration: 2 * 60 * 1000,
       skipMiddlewares: true,
     },
   });
@@ -50,6 +58,14 @@ export function createSocketServer(httpServer: HttpServer): SocketServer {
           response = await handleShip(socket, msg, io);
         } else if (MAP_COMMANDS.has(command)) {
           response = await handleMap(socket, msg);
+        } else if (TAX_COMMANDS.has(command)) {
+          response = await handleTax(socket, msg);
+        } else if (STORAGE_COMMANDS.has(command)) {
+          response = await handleStorage(socket, msg);
+        } else if (MARKETPLACE_COMMANDS.has(command)) {
+          response = await handleMarketplace(socket, msg);
+        } else if (THEFT_COMMANDS.has(command)) {
+          response = await handleTheft(socket, msg);
         } else {
           throw new Error(`Unknown command: ${command}`);
         }

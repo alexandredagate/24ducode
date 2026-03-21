@@ -3,4 +3,8 @@ export * from "./cell";
 export * from "./ship";
 export * from "./island";
 export * from "./player";
+export * from "./tax";
+export * from "./storage";
+export * from "./marketplace";
+export * from "./theft";
 export * from "./socket";

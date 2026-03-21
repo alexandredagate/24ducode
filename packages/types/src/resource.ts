@@ -4,3 +4,9 @@ export interface Resource {
   quantity: number;
   type: ResourceType;
 }
+
+export interface PriceResources {
+  FERONIUM: number;
+  BOISIUM: number;
+  CHARBONIUM: number;
+}

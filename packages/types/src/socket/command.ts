@@ -1,15 +1,25 @@
 export type CommandName =
-  // Auth
   | "auth:login"
   | "auth:logout"
   | "auth:refresh"
-  // Player
   | "player:details"
   | "player:resources"
-  // Ship
   | "ship:build"
   | "ship:move"
-  // Map
+  | "ship:next-level"
+  | "ship:upgrade"
+  | "tax:list"
+  | "tax:pay"
+  | "storage:next-level"
+  | "storage:upgrade"
+  | "marketplace:offers"
+  | "marketplace:offer"
+  | "marketplace:create-offer"
+  | "marketplace:update-offer"
+  | "marketplace:delete-offer"
+  | "marketplace:purchase"
+  | "theft:list"
+  | "theft:attack"
   | "map:grid";
 
 export interface ClientCommand<T = unknown> {
