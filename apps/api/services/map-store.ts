@@ -2,6 +2,23 @@ import { getDb } from "./db";
 import type { Cell } from "types";
 
 const COLLECTION = "cells";
+const SHIP_POSITION_COLLECTION = "ship_position";
+
+export async function saveShipPosition(codingGameId: string, position: Cell, energy: number): Promise<void> {
+  const col = getDb().collection(SHIP_POSITION_COLLECTION);
+  await col.updateOne(
+    { codingGameId },
+    { $set: { codingGameId, position, energy, updatedAt: new Date() } },
+    { upsert: true },
+  );
+}
+
+export async function getShipPosition(codingGameId: string): Promise<{ position: Cell; energy: number } | null> {
+  const col = getDb().collection(SHIP_POSITION_COLLECTION);
+  const doc = await col.findOne({ codingGameId });
+  if (!doc) return null;
+  return { position: doc.position as Cell, energy: doc.energy as number };
+}
 
 export async function upsertCells(cells: Cell[]): Promise<void> {
   if (!cells.length) return;

@@ -1,6 +1,6 @@
 import type { Socket, Server as SocketServer } from "socket.io";
 import { buildShip, moveShip, getShipNextLevel, upgradeShip } from "../../services/game-api";
-import { upsertCells, getMapGrid } from "../../services/map-store";
+import { upsertCells, getMapGrid, saveShipPosition, getShipPosition } from "../../services/map-store";
 import type { ClientCommand, ServerResponse, Direction, UpgradeShip, Cell } from "types";
 
 const VALID_DIRECTIONS = new Set<Direction>([
@@ -42,6 +42,7 @@ export async function handleShip(
       const mapGrid = await getMapGrid();
       io.emit("map:update", { command: "map:update", status: "ok", data: mapGrid });
 
+      await saveShipPosition(codingGameId, data.position, data.energy);
       io.emit("ship:position", { position: data.position, energy: data.energy });
 
       return { command: "ship:move", status: "ok", data };
@@ -49,8 +50,9 @@ export async function handleShip(
 
     case "ship:location": {
       const codingGameId = requireAuth(socket);
-      const ship = await getShipNextLevel(codingGameId);
-      return { command: "ship:location", status: "ok", data: { position: ship.currentPosition } };
+      const data = await getShipPosition(codingGameId);
+      if (!data) throw new Error("No position known yet — move the ship first");
+      return { command: "ship:location", status: "ok", data };
     }
 
     case "ship:next-level": {
