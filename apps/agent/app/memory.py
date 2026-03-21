@@ -24,8 +24,9 @@ def _available(_zone: int) -> list[str]:
 
 
 def _distance(x: int, y: int, tx: int, ty: int, zone: int) -> int:
-    """Distance selon le modèle de mouvement de la zone (Manhattan zone 1, Chebyshev sinon)."""
-    if zone == 1:
+    """Distance selon le modèle de mouvement réel (Manhattan si cardinales seules, Chebyshev si diagonales)."""
+    from app.config import settings
+    if not settings.enable_diagonal or zone == 1:
         return abs(tx - x) + abs(ty - y)
     return max(abs(tx - x), abs(ty - y))
 

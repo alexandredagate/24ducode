@@ -171,19 +171,19 @@ class AgentV2(BaseAgent):
 
         # --- 1. Énergie critique → île connue la plus proche ---
         nearest = self.world.nearest_islands(pos["x"], pos["y"], zone, n=1)
-        if nearest:
-            dist_nearest = _distance(pos["x"], pos["y"], nearest[0]["x"], nearest[0]["y"], zone)
-            if energy <= dist_nearest + settings.energy_buffer:
-                self._set_waypoint(nearest[0], "fuel_emergency")
-                logger.info(
-                    "⛽ Énergie critique (%s) — retour vers île (%s,%s) dist=%s",
-                    energy, nearest[0]["x"], nearest[0]["y"], dist_nearest,
-                )
-                return
+        dist_nearest = _distance(pos["x"], pos["y"], nearest[0]["x"], nearest[0]["y"], zone) if nearest else 0
+        if nearest and energy <= dist_nearest + settings.energy_buffer:
+            self._set_waypoint(nearest[0], "fuel_emergency")
+            logger.info(
+                "⛽ Énergie critique (%s) — retour vers île (%s,%s) dist=%s",
+                energy, nearest[0]["x"], nearest[0]["y"], dist_nearest,
+            )
+            return
 
         # --- 1b. Recharge proactive si carburant < low_fuel_ratio ---
+        # Skip si déjà sur une île (dist=0) pour éviter une boucle infinie.
         if self._max_energy > 0 and energy < settings.low_fuel_ratio * self._max_energy:
-            if nearest:
+            if nearest and dist_nearest > 0:
                 self._set_waypoint(nearest[0], "fuel_proactive")
                 logger.info(
                     "⛽ Recharge proactive (energy=%s < %.0f%% of %s) — île (%s,%s) dist=%s",
@@ -415,7 +415,8 @@ class AgentV2(BaseAgent):
 
         self.memory.mark_island(pos)
 
-        known = self.world and self.world.cell_at(ix, iy) is not None
+        cell = self.world.cell_at(ix, iy) if self.world else None
+        known = cell is not None and is_island(cell)
         if known:
             self._on_known_island(ix, iy)
         else:

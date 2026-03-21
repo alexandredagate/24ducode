@@ -10,8 +10,9 @@ _ISLAND_TYPES: frozenset[str] = frozenset({"SAND"})
 
 
 def _distance(x: int, y: int, tx: int, ty: int, zone: int) -> int:
-    """Distance zone-aware : Manhattan en zone 1, Chebyshev ailleurs."""
-    if zone == 1:
+    """Distance selon le modèle de mouvement réel (Manhattan si cardinales seules, Chebyshev si diagonales)."""
+    from app.config import settings
+    if not settings.enable_diagonal or zone == 1:
         return abs(tx - x) + abs(ty - y)
     return max(abs(tx - x), abs(ty - y))
 
