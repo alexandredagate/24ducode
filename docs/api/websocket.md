@@ -15,6 +15,8 @@ Client                          Serveur
   |                                |
   |<-- emit("map:update", grid) ---|  (broadcast a TOUS les clients apres un ship:move)
   |                                |
+  |<-- emit("broker:event", msg) --|  (broadcast depuis le broker AMQP du jeu)
+  |                                |
 ```
 
 ## Connexion
@@ -714,6 +716,26 @@ Emis a **tous les clients connectes** apres chaque `ship:move` reussi.
 }
 ```
 
+### `broker:event`
+
+Emis a **tous les clients connectes** lorsqu'un message arrive du broker AMQP du jeu 3026 (nouvelles offres, vols, decouvertes, etc.).
+
+**Evenement :** `broker:event`
+
+```json
+{
+  "type": "OFFER_CREATED",
+  "data": {
+    "id": "345707cf-...",
+    "resourceType": "BOISIUM",
+    "quantityIn": 1000,
+    "pricePerResource": 1
+  }
+}
+```
+
+Le format depend du jeu — le message est transmis tel quel. Voir [broker.md](./broker.md) pour plus de details.
+
 ---
 
 ## Erreur commune
@@ -744,7 +766,7 @@ Configurable via `ACCESS_SECRET`, `REFRESH_SECRET`, `ACCESS_TTL`, `REFRESH_TTL`.
 1. Ouvrir Postman -> **New** -> **Socket.IO**
 2. URL : `http://localhost:3001`
 3. Se connecter
-4. Dans **Events** -> ajouter des listeners sur `response` et `map:update`
+4. Dans **Events** -> ajouter des listeners sur `response`, `map:update` et `broker:event`
 5. Envoyer les messages sur l'evenement `message` (defaut)
 
 ## Base de donnees

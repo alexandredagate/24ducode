@@ -1,10 +1,9 @@
-import dotenv from "dotenv";
-import path from "path";
-dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+import "dotenv/config";
 import { createServer } from "http";
 import express from "express";
 import { createSocketServer } from "./socket";
 import { connectDb } from "./services/db";
+import { connectBroker } from "./services/broker";
 
 const PORT = Number(process.env.PORT) || 3001;
 
@@ -16,10 +15,11 @@ app.get("/health", (_req, res) => {
 });
 
 const httpServer = createServer(app);
-createSocketServer(httpServer);
+const io = createSocketServer(httpServer);
 
 async function start() {
   await connectDb();
+  connectBroker(io);
   httpServer.listen(PORT, () => {
     console.log(`[api] listening on http://localhost:${PORT}`);
     console.log(`[api] socket.io ready`);
