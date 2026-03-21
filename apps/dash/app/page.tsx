@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { BrokerEventsPanel } from "../components/BrokerEventsPanel";
 import { LoginForm } from "../components/LoginForm";
+import { MapPanel } from "../components/MapPanel";
 import { MarketplacePanel } from "../components/MarketplacePanel";
 import { PlayerCard } from "../components/PlayerCard";
 import { ShipPanel } from "../components/ShipPanel";
@@ -10,11 +11,12 @@ import { TaxesPanel } from "../components/TaxesPanel";
 import { useSocket } from "../hooks/useSocket";
 import type { Direction, ResourceType } from "../hooks/useSocket";
 
-type Tab = "overview" | "ship" | "marketplace" | "taxes" | "events";
+type Tab = "overview" | "ship" | "map" | "marketplace" | "taxes" | "events";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Vue globale" },
   { id: "ship", label: "Bateau" },
+  { id: "map", label: "Carte" },
   { id: "marketplace", label: "Marketplace" },
   { id: "taxes", label: "Taxes" },
   { id: "events", label: "Events" },
@@ -36,6 +38,8 @@ export default function Home() {
     taxes,
     marketOffers,
     storageInfo,
+    mapGrid,
+    refreshMapGrid,
     brokerEvents,
     clearBrokerEvents,
     refreshAll,
@@ -52,30 +56,29 @@ export default function Home() {
   }
 
   async function handleMove(direction: Direction) {
-    const result = await emit<{ position: { id: string; x: number; y: number; type: string; zone: number }; energy: number }>(
+    return await emit<{ position: { id: string; x: number; y: number; type: string; zone: number }; energy: number }>(
       "ship:move",
       { direction }
     );
-    // refreshAll est appelé via map:update (broadcast automatique après ship:move)
-    return result;
+    // map:update + ship:position broadcasts gèrent la mise à jour
   }
 
   async function handleShipBuild() {
     const result = await emit("ship:build");
-    refreshAll();
+    refreshAll(); // Pas de broadcast pour build, refresh nécessaire
     return result;
   }
 
   async function handleShipUpgrade() {
     if (!shipNextLevel?.level) return;
     const result = await emit("ship:upgrade", { level: shipNextLevel.level.id });
-    refreshAll();
+    refreshAll(); // Pas de broadcast pour upgrade, refresh nécessaire
     return result;
   }
 
   async function handleUpgradeStorage() {
     await emit("storage:upgrade");
-    refreshAll();
+    refreshAll(); // Pas de broadcast pour storage, refresh nécessaire
   }
 
   async function handleTaxPay(taxId: string) {
@@ -227,6 +230,14 @@ export default function Home() {
           <div className="max-w-md mx-auto">
             <ShipPanel {...shipPanelProps} />
           </div>
+        )}
+
+        {activeTab === "map" && (
+          <MapPanel
+            mapGrid={mapGrid}
+            shipPosition={currentPosition ? { x: currentPosition.x, y: currentPosition.y } : null}
+            onRefresh={refreshMapGrid}
+          />
         )}
 
         {activeTab === "marketplace" && (

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || "https://24ducode-api.fly.dev";
 
 export type ResourceType = "FERONIUM" | "BOISIUM" | "CHARBONIUM";
 export type Direction = "N" | "S" | "E" | "W" | "NE" | "NW" | "SE" | "SW";
@@ -62,6 +62,16 @@ export interface StorageInfo {
   costResources: { FERONIUM: number; BOISIUM: number; CHARBONIUM: number };
 }
 
+export interface MapGrid {
+  grid: string[];
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  width: number;
+  height: number;
+}
+
 export interface BrokerEvent {
   id: number;
   receivedAt: string;
@@ -116,6 +126,7 @@ export function useSocket(): UseSocketReturn {
   const [taxes, setTaxes] = useState<Tax[]>([]);
   const [marketOffers, setMarketOffers] = useState<MarketOffer[]>([]);
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
+  const [mapGrid, setMapGrid] = useState<MapGrid | null>(null);
   const [brokerEvents, setBrokerEvents] = useState<BrokerEvent[]>([]);
   const brokerIdRef = useRef(0);
   const [lastError, setLastError] = useState<string | null>(null);
@@ -250,6 +261,13 @@ export function useSocket(): UseSocketReturn {
     } catch {}
   }, [emit]);
 
+  const refreshMapGrid = useCallback(async () => {
+    try {
+      const data = await emit<MapGrid>("map:grid");
+      setMapGrid(data);
+    } catch {}
+  }, [emit]);
+
   const refreshShipLocation = useCallback(async () => {
     try {
       const data = await emit<{ position: { id: string; x: number; y: number; type: string; zone: number }; energy: number }>("ship:location");
@@ -270,13 +288,26 @@ export function useSocket(): UseSocketReturn {
     await refreshTaxes();
     await refreshMarketOffers();
     await refreshStorageInfo();
-  }, [refreshPlayerDetails, refreshShipNextLevel, refreshShipLocation, refreshTaxes, refreshMarketOffers, refreshStorageInfo]);
+    await refreshMapGrid();
+  }, [refreshPlayerDetails, refreshShipNextLevel, refreshShipLocation, refreshTaxes, refreshMarketOffers, refreshStorageInfo, refreshMapGrid]);
 
-  // Ref stable pour refreshShipNextLevel utilisée dans useEffect
+  // Refs stables pour les fonctions de refresh utilisées dans useEffect
   const refreshShipNextLevelRef = useRef(refreshShipNextLevel);
+  const refreshPlayerDetailsRef = useRef(refreshPlayerDetails);
+  const refreshMarketOffersRef = useRef(refreshMarketOffers);
+  const refreshStorageInfoRef = useRef(refreshStorageInfo);
+  const refreshTaxesRef = useRef(refreshTaxes);
+  const refreshShipLocationRef = useRef(refreshShipLocation);
+  const refreshMapGridRef = useRef(refreshMapGrid);
   useEffect(() => {
     refreshShipNextLevelRef.current = refreshShipNextLevel;
-  }, [refreshShipNextLevel]);
+    refreshPlayerDetailsRef.current = refreshPlayerDetails;
+    refreshMarketOffersRef.current = refreshMarketOffers;
+    refreshStorageInfoRef.current = refreshStorageInfo;
+    refreshTaxesRef.current = refreshTaxes;
+    refreshShipLocationRef.current = refreshShipLocation;
+    refreshMapGridRef.current = refreshMapGrid;
+  }, [refreshShipNextLevel, refreshPlayerDetails, refreshMarketOffers, refreshStorageInfo, refreshTaxes, refreshShipLocation, refreshMapGrid]);
 
   useEffect(() => {
     const socket = io(SOCKET_URL, { transports: ["websocket"] });
@@ -300,26 +331,78 @@ export function useSocket(): UseSocketReturn {
       pendingRef.current.clear();
     });
 
-    // map:update → refresh ship via la ref stable (pas de race condition)
-    socket.on("map:update", (data: unknown) => {
+    // map:update → données de grille reçues en broadcast après chaque ship:move
+    // Format serveur : { command: "map:update", status: "ok", data: { grid, minX, maxX, minY, maxY, width, height } }
+    socket.on("map:update", (raw: unknown) => {
+      console.log("[map:update] received:", raw);
+      if (raw != null && typeof raw === "object") {
+        const obj = raw as Record<string, unknown>;
+        const mapData = (obj.data && typeof obj.data === "object" ? obj.data : obj) as Record<string, unknown>;
+        if (mapData.grid) {
+          setMapGrid(mapData as unknown as MapGrid);
+        }
+      }
       refreshShipNextLevelRef.current();
-      pushEvent("MAP_UPDATE", data);
+      refreshPlayerDetailsRef.current();
+      pushEvent("MAP_UPDATE", raw);
     });
 
-    // ship:position → track position broadcasts
+    // ship:position → position + énergie en temps réel après chaque ship:move
+    // Format serveur : { position: { id, x, y, type, zone }, energy: number }
     socket.on("ship:position", (data: unknown) => {
+      console.log("[ship:position] received:", data);
+      if (data != null && typeof data === "object") {
+        const obj = data as Record<string, unknown>;
+        const pos = obj.position as { x: number; y: number; type: string; zone: number } | undefined;
+        if (pos) setCurrentPositionRef.current(pos);
+        if (typeof obj.energy === "number") setAvailableMoveRef.current(obj.energy);
+      }
       pushEvent("SHIP_POSITION", data);
     });
 
     // broker:event → AMQP events from the game server
+    // Déclenche des refreshs ciblés selon le type d'event
     socket.on("broker:event", (msg: unknown) => {
       console.log("[broker:event] raw:", msg);
+      let type = "BROKER";
       if (msg != null && typeof msg === "object" && !Array.isArray(msg)) {
         const obj = msg as Record<string, unknown>;
-        const type = typeof obj.type === "string" ? obj.type : "BROKER";
+        type = typeof obj.type === "string" ? obj.type : "BROKER";
         pushEvent(type, obj.data ?? obj);
       } else {
         pushEvent("BROKER", msg);
+      }
+
+      // Refresh réactif ciblé selon le type d'événement
+      switch (type) {
+        case "OFFER_CREATED":
+        case "OFFER_UPDATED":
+        case "OFFER_DELETED":
+        case "OFFER_PURCHASED":
+          refreshMarketOffersRef.current();
+          refreshPlayerDetailsRef.current();
+          break;
+        case "THEFT_RESOLVED":
+        case "THEFT_CREATED":
+          refreshPlayerDetailsRef.current();
+          refreshStorageInfoRef.current();
+          break;
+        case "TAX_CREATED":
+        case "TAX_PAID":
+        case "TAX_EXPIRED":
+          refreshTaxesRef.current();
+          refreshPlayerDetailsRef.current();
+          break;
+        case "ISLAND_DISCOVERED":
+          refreshPlayerDetailsRef.current();
+          refreshMapGridRef.current();
+          break;
+        default:
+          // Event inconnu → refresh player par sécurité
+          if (type !== "BROKER" && type !== "MAP_UPDATE" && type !== "SHIP_POSITION") {
+            refreshPlayerDetailsRef.current();
+          }
+          break;
       }
     });
 
@@ -353,18 +436,8 @@ export function useSocket(): UseSocketReturn {
   useEffect(() => {
     if (authenticated) {
       refreshAll();
-      const interval = setInterval(refreshAll, 30000);
-      return () => clearInterval(interval);
     }
   }, [authenticated, refreshAll]);
-
-  // Polling position du bateau toutes les 5s
-  useEffect(() => {
-    if (authenticated && shipExists) {
-      const interval = setInterval(refreshShipLocation, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [authenticated, shipExists, refreshShipLocation]);
 
   const login = useCallback(async (pin: string) => {
     const socket = socketRef.current;
@@ -394,6 +467,7 @@ export function useSocket(): UseSocketReturn {
     setTaxes([]);
     setMarketOffers([]);
     setStorageInfo(null);
+    setMapGrid(null);
     setBrokerEvents([]);
     for (const entry of pendingRef.current.values()) clearTimeout(entry.timeout);
     pendingRef.current.clear();
@@ -416,6 +490,8 @@ export function useSocket(): UseSocketReturn {
     brokerEvents,
     clearBrokerEvents: useCallback(() => setBrokerEvents([]), []),
     storageInfo,
+    mapGrid,
+    refreshMapGrid,
     refreshAll,
     lastError,
   };

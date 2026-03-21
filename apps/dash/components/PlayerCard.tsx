@@ -46,34 +46,17 @@ export function PlayerCard({ player, storage, onUpgradeStorage }: PlayerCardProp
 
       {/* Ressources */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {player.resources.map((r) => {
-          const maxQty = storage?.maxResources[r.type as keyof typeof storage.maxResources];
-          const pct = maxQty ? Math.round((r.quantity / maxQty) * 100) : null;
-          return (
-            <div
-              key={r.type}
-              className={`rounded-xl border p-4 ${RESOURCE_BG[r.type] ?? "bg-zinc-800 border-zinc-700"}`}
-            >
-              <div className={`text-xs font-semibold uppercase tracking-wide ${RESOURCE_COLORS[r.type] ?? "text-zinc-300"}`}>
-                {r.type}
-              </div>
-              <div className="text-2xl font-bold text-white mt-1">{r.quantity.toLocaleString()}</div>
-              {maxQty !== undefined && (
-                <>
-                  <div className="text-zinc-500 text-xs mt-0.5">/ {maxQty.toLocaleString()}</div>
-                  <div className="mt-2 h-1.5 rounded-full bg-zinc-700 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        (pct ?? 0) > 80 ? "bg-red-500" : (pct ?? 0) > 50 ? "bg-yellow-400" : RESOURCE_COLORS[r.type]?.replace("text-", "bg-") ?? "bg-zinc-400"
-                      }`}
-                      style={{ width: `${Math.min(pct ?? 0, 100)}%` }}
-                    />
-                  </div>
-                </>
-              )}
+        {player.resources.map((r) => (
+          <div
+            key={r.type}
+            className={`rounded-xl border p-4 ${RESOURCE_BG[r.type] ?? "bg-zinc-800 border-zinc-700"}`}
+          >
+            <div className={`text-xs font-semibold uppercase tracking-wide ${RESOURCE_COLORS[r.type] ?? "text-zinc-300"}`}>
+              {r.type}
             </div>
-          );
-        })}
+            <div className="text-2xl font-bold text-white mt-1">{r.quantity.toLocaleString()}</div>
+          </div>
+        ))}
       </div>
 
       {/* Upgrade entrepôt */}
