@@ -1,8 +1,13 @@
 import { getDb } from "./db";
-import type { Cell } from "types";
+import type { Cell, CellNote } from "types";
 
 const COLLECTION = "cells";
 const SHIP_POSITION_COLLECTION = "ship_position";
+
+/** Known special locations: coordinate key "x,y" → note */
+const KNOWN_NOTES = new Map<string, CellNote>([
+  ["5,3", "HOME"],
+]);
 
 export async function saveShipPosition(codingGameId: string, position: Cell, energy: number): Promise<void> {
   const col = getDb().collection(SHIP_POSITION_COLLECTION);
@@ -23,14 +28,37 @@ export async function getShipPosition(codingGameId: string): Promise<{ position:
 export async function upsertCells(cells: Cell[]): Promise<void> {
   if (!cells.length) return;
   const col = getDb().collection(COLLECTION);
-  const ops = cells.map((cell) => ({
-    updateOne: {
-      filter: { x: cell.x, y: cell.y },
-      update: { $set: { id: cell.id, x: cell.x, y: cell.y, type: cell.type, zone: cell.zone } },
-      upsert: true,
-    },
-  }));
+  const ops = cells.map((cell) => {
+    const $set: Record<string, unknown> = { id: cell.id, x: cell.x, y: cell.y, type: cell.type, zone: cell.zone };
+    const note = cell.note ?? KNOWN_NOTES.get(`${cell.x},${cell.y}`);
+    if (note) $set.note = note;
+    return {
+      updateOne: {
+        filter: { x: cell.x, y: cell.y },
+        update: { $set },
+        upsert: true,
+      },
+    };
+  });
   await col.bulkWrite(ops);
+}
+
+export async function setCellNote(x: number, y: number, note: CellNote): Promise<void> {
+  const col = getDb().collection(COLLECTION);
+  await col.updateOne({ x, y }, { $set: { note } });
+}
+
+export async function getCellAt(x: number, y: number): Promise<Cell | null> {
+  const col = getDb().collection(COLLECTION);
+  const doc = await col.findOne({ x, y });
+  if (!doc) return null;
+  return { id: doc.id, x: doc.x, y: doc.y, type: doc.type, zone: doc.zone, note: doc.note } as Cell;
+}
+
+export interface CellNoteEntry {
+  x: number;
+  y: number;
+  note: CellNote;
 }
 
 export interface MapGrid {
@@ -41,6 +69,7 @@ export interface MapGrid {
   maxY: number;
   width: number;
   height: number;
+  notes: CellNoteEntry[];
 }
 
 export async function getMapGrid(): Promise<MapGrid> {
@@ -48,7 +77,7 @@ export async function getMapGrid(): Promise<MapGrid> {
   const cells = await col.find({}).toArray();
 
   if (!cells.length) {
-    return { grid: [], minX: 0, maxX: 0, minY: 0, maxY: 0, width: 0, height: 0 };
+    return { grid: [], minX: 0, maxX: 0, minY: 0, maxY: 0, width: 0, height: 0, notes: [] };
   }
 
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -75,5 +104,9 @@ export async function getMapGrid(): Promise<MapGrid> {
 
   const grid = rows.map((r) => r.join(""));
 
-  return { grid, minX, maxX, minY, maxY, width, height };
+  const notes: CellNoteEntry[] = cells
+    .filter((c) => c.note)
+    .map((c) => ({ x: c.x, y: c.y, note: c.note as CellNote }));
+
+  return { grid, minX, maxX, minY, maxY, width, height, notes };
 }

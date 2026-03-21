@@ -1,6 +1,6 @@
 import type { Socket, Server as SocketServer } from "socket.io";
 import { buildShip, moveShip, getShipNextLevel, upgradeShip } from "../../services/game-api";
-import { upsertCells, getMapGrid, saveShipPosition, getShipPosition } from "../../services/map-store";
+import { upsertCells, getMapGrid, saveShipPosition, getShipPosition, getCellAt } from "../../services/map-store";
 import type { ClientCommand, ServerResponse, Direction, UpgradeShip, Cell } from "types";
 
 const VALID_DIRECTIONS = new Set<Direction>([
@@ -42,8 +42,17 @@ export async function handleShip(
       const mapGrid = await getMapGrid();
       io.emit("map:update", { command: "map:update", status: "ok", data: mapGrid });
 
-      await saveShipPosition(codingGameId, data.position, data.energy);
-      io.emit("ship:position", { position: data.position, energy: data.energy });
+      // Enrich position with note if present
+      let positionWithNote = data.position;
+      if (data.position) {
+        const cellData = await getCellAt(data.position.x, data.position.y);
+        if (cellData?.note) {
+          positionWithNote = { ...data.position, note: cellData.note };
+        }
+      }
+
+      await saveShipPosition(codingGameId, positionWithNote, data.energy);
+      io.emit("ship:position", { position: positionWithNote, energy: data.energy });
 
       return { command: "ship:move", status: "ok", data };
     }
@@ -52,6 +61,11 @@ export async function handleShip(
       const codingGameId = requireAuth(socket);
       const data = await getShipPosition(codingGameId);
       if (!data) throw new Error("No position known yet — move the ship first");
+      // Enrich position with note if present
+      const cellInfo = await getCellAt(data.position.x, data.position.y);
+      if (cellInfo?.note) {
+        data.position = { ...data.position, note: cellInfo.note };
+      }
       return { command: "ship:location", status: "ok", data };
     }
 
