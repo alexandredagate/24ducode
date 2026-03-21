@@ -11,7 +11,12 @@ class Settings(BaseSettings):
     ws_reconnect_delay: float = 3.0
     coding_game_id: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjb2RpbmdnYW1lIiwic3ViIjoiNDEwYzhiNjQtOTEzZi00NmViLThiYzAtN2ExOTdjNGY1MDZkIiwicm9sZXMiOlsiVVNFUiJdfQ.hnkPxnsdQQFmwnggFKWfDRq5PPQrQ2wBkeqAYIFQklw"
     energy_buffer: int = 5
+    low_fuel_ratio: float = 0.55
+    spiral_angle_step: float = 0.7854  # pi/4
+    spiral_growth: float = 1.5
+    enable_diagonal: bool = False
     auto_pay_fines: bool = True
+    agent_version: str = "v2"
 
 
 settings = Settings()

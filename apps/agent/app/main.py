@@ -6,7 +6,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from app.agent import AgentV1
+from app.agents import get_agent
 from app.config import settings
 from app.db import MongoClient, get_db
 from app.ws_client import SocketIOClient
@@ -26,7 +26,7 @@ async def _run_agent_loop(db: MongoClient) -> None:
     while True:
         attempt += 1
         ws = SocketIOClient(reconnect_delay=settings.ws_reconnect_delay)
-        agent = AgentV1(ws, db=db)
+        agent = get_agent(settings.agent_version, ws, db=db)
         logger.info("Démarrage boucle agent (tentative #%s)", attempt)
         try:
             await agent.run()

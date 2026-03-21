@@ -19,7 +19,8 @@ _ALL_DIRS: list[str] = list(_DIR_VECTORS.keys())
 
 
 def _available(_zone: int) -> list[str]:
-    return _ZONE1_DIRS
+    from app.config import settings
+    return _ALL_DIRS if settings.enable_diagonal else _ZONE1_DIRS
 
 
 def _distance(x: int, y: int, tx: int, ty: int, zone: int) -> int:

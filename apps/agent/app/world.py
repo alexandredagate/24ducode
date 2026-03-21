@@ -66,6 +66,28 @@ class WorldMap:
         """Lookup O(1) d'une cellule par coordonnées."""
         return self._cells.get((x, y))
 
+    def all_islands(self) -> list[dict]:
+        """Retourne toutes les îles connues."""
+        return list(self._islands)
+
+    def islands_in_zone(self, zone: int) -> list[dict]:
+        """Retourne les îles appartenant à une zone donnée."""
+        return [i for i in self._islands if i.get("zone") == zone]
+
+    def islands_by_zone(self) -> dict[int, list[dict]]:
+        """Retourne les îles groupées par zone."""
+        result: dict[int, list[dict]] = {}
+        for i in self._islands:
+            z = i.get("zone", 1)
+            result.setdefault(z, []).append(i)
+        return result
+
+    def max_known_zone(self) -> int:
+        """Retourne la zone la plus haute contenant au moins une île connue."""
+        if not self._islands:
+            return 1
+        return max(i.get("zone", 1) for i in self._islands)
+
     @property
     def cell_count(self) -> int:
         return len(self._cells)
