@@ -31,7 +31,8 @@ def _dot(a: tuple[float, float], b: tuple[float, float]) -> float:
 
 
 def available_directions() -> list[str]:
-    return ZONE1_DIRS
+    from app.config import settings
+    return ALL_DIRS if settings.enable_diagonal else ZONE1_DIRS
 
 
 class Strategy(ABC):

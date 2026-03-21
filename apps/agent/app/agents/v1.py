@@ -49,14 +49,18 @@ class AgentV1(BaseAgent):
                 if is_island(pos):
                     self.memory.mark_island(pos)
 
-        # Assume we start on our home island.
-        self.memory.mark_island()
-        logger.info("🏝️  Position initiale marquée comme île connue")
+        # Marquer HOME comme fallback si pas de position restaurée.
+        if not self.world or not await self.world.get_ship_state(settings.coding_game_id):
+            from app.memory import HOME_POSITION
+            self.memory.mark_island(HOME_POSITION)
+            logger.info("🏝️  HOME marquée comme île connue (fallback)")
 
         while True:
             direction = self._pick_direction()
             if direction is None:
-                self._on_return_complete()
+                self._on_return_complete(
+                    self.memory.moves[-1].position if self.memory.moves else None
+                )
                 continue
 
             logger.debug(
@@ -90,7 +94,13 @@ class AgentV1(BaseAgent):
     # V1 helpers
     # ------------------------------------------------------------------
 
-    def _on_return_complete(self) -> None:
+    def _on_return_complete(self, current_pos: dict | None = None) -> None:
+        # Vérifier qu'on est bien sur une île avant de reprendre l'exploration
+        if current_pos and not is_island(current_pos):
+            logger.warning("⚠️  Retour terminé mais pas sur une île — recalcul du retour")
+            self._return_queue = []
+            self._returning = False
+            return
         logger.info("🏝️  Retour terminé — île atteinte, reprise de l'exploration")
         self._returning = False
         if isinstance(self.strategy, ExplorationV1Strategy):
@@ -118,31 +128,34 @@ class AgentV1(BaseAgent):
             logger.info("🏝️  Île atteinte : %s", data["position"])
             self.memory.mark_island(data["position"])
             if self._returning:
-                self._on_return_complete()
+                self._on_return_complete(data["position"])
                 return
 
         if not self._returning:
             await self._check_fuel(data["energy"], data["position"])
 
     async def _check_fuel(self, energy: int, pos: dict) -> None:
+        buffer = settings.energy_buffer
+
         if self.world:
             await self.world.refresh()
-            nearest = self.world.nearest_islands(pos["x"], pos["y"], self._current_zone, n=1)
+            nearest = self.world.nearest_islands(
+                pos["x"], pos["y"], self._current_zone, n=1, same_zone=True,
+            )
             if nearest:
                 target = nearest[0]
                 distance = self.memory.distance_to(pos, target, self._current_zone)
                 logger.debug(
-                    "Vérification carburant | énergie=%s | distance île la plus proche=%s | île=(%s,%s)",
-                    energy, distance, target["x"], target["y"],
+                    "Vérification carburant | énergie=%s | distance île la plus proche=%s (+buffer %s) | île=(%s,%s)",
+                    energy, distance, buffer, target["x"], target["y"],
                 )
-                if energy <= distance:
+                if energy <= distance + buffer:
                     logger.info(
-                        "⛽ Carburant critique (énergie=%s, distance=%s) — demi-tour vers île la plus proche (%s,%s)",
-                        energy, distance, target["x"], target["y"],
+                        "⛽ Carburant critique (énergie=%s, distance=%s+%s) — demi-tour vers île (%s,%s)",
+                        energy, distance, buffer, target["x"], target["y"],
                     )
                     self._returning = True
                     self._return_queue = self.memory.path_to(pos, target, self._current_zone)
-                    self.memory.mark_island(target)
                     logger.info("🔄 Itinéraire retour calculé (%s étapes)", len(self._return_queue))
                 return
 
@@ -150,13 +163,13 @@ class AgentV1(BaseAgent):
         distance = self.memory.distance_to_island(pos, self._current_zone)
         island = self.memory.last_known_island_position()
         logger.debug(
-            "Vérification carburant | énergie=%s | distance île=%s | île cible=(%s,%s)",
-            energy, distance, island["x"], island["y"],
+            "Vérification carburant | énergie=%s | distance île=%s (+buffer %s) | île cible=(%s,%s)",
+            energy, distance, buffer, island["x"], island["y"],
         )
-        if energy <= distance:
+        if energy <= distance + buffer:
             logger.info(
-                "⛽ Carburant critique (énergie=%s, distance île=%s cases) — demi-tour vers (%s,%s)",
-                energy, distance, island["x"], island["y"],
+                "⛽ Carburant critique (énergie=%s, distance île=%s+%s cases) — demi-tour vers (%s,%s)",
+                energy, distance, buffer, island["x"], island["y"],
             )
             self._returning = True
             self._return_queue = self.memory.return_path_to_island(pos, self._current_zone)

@@ -53,13 +53,20 @@ class WorldMap:
     # ------------------------------------------------------------------
 
     def nearest_islands(
-        self, x: int, y: int, zone: int, n: int = 5
+        self, x: int, y: int, zone: int, n: int = 5, *, same_zone: bool = False
     ) -> list[dict]:
-        """Retourne les n îles (SAND) les plus proches par distance zone-aware."""
-        if not self._islands:
+        """Retourne les n îles (SAND) les plus proches par distance zone-aware.
+
+        Si same_zone=True, filtre les îles de la même zone uniquement (évite
+        de router le bot vers une île inaccessible dans une autre zone).
+        """
+        candidates = self._islands if not same_zone else [
+            i for i in self._islands if i.get("zone") == zone
+        ]
+        if not candidates:
             return []
         return sorted(
-            self._islands,
+            candidates,
             key=lambda c: _distance(x, y, c["x"], c["y"], zone),
         )[:n]
 

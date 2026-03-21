@@ -102,13 +102,28 @@ class AgentV2(BaseAgent):
                     self.memory.mark_island(self._current_pos)
                 self._spiral_center = (self._current_pos["x"], self._current_pos["y"])
 
-        self.memory.mark_island()
-        logger.info("🏝️  Position initiale marquée comme île connue")
+        # Si on a restauré une position sur une île, c'est déjà marqué.
+        # Sinon, on marque HOME comme fallback.
+        if not self._current_pos:
+            self.memory.mark_island(HOME_POSITION)
+            logger.info("🏝️  HOME marquée comme île connue (fallback)")
 
         while True:
             # Recalcul des priorités à chaque tick.
             if self.world:
                 await self.world.refresh()
+
+            # Si on avait un waypoint fuel et que le path est vide mais on n'est pas
+            # sur une île → le retour a raté, recalculer.
+            if (
+                not self._path_queue
+                and self._waypoints
+                and self._waypoints[0].get("reason", "").startswith("fuel")
+                and self._current_pos
+                and not is_island(self._current_pos)
+            ):
+                logger.warning("⚠️  Path de retour terminé mais pas sur une île — recalcul")
+                self._retreat_to_nearest_island()
 
             direction = self._pick_direction()
 
@@ -169,8 +184,8 @@ class AgentV2(BaseAgent):
         energy = self._current_energy
         zone = self._current_zone
 
-        # --- 1. Énergie critique → île connue la plus proche ---
-        nearest = self.world.nearest_islands(pos["x"], pos["y"], zone, n=1)
+        # --- 1. Énergie critique → île connue la plus proche (même zone) ---
+        nearest = self.world.nearest_islands(pos["x"], pos["y"], zone, n=1, same_zone=True)
         dist_nearest = _distance(pos["x"], pos["y"], nearest[0]["x"], nearest[0]["y"], zone) if nearest else 0
         if nearest and energy <= dist_nearest + settings.energy_buffer:
             self._set_waypoint(nearest[0], "fuel_emergency")
@@ -182,7 +197,7 @@ class AgentV2(BaseAgent):
 
         # --- 1b. Recharge proactive si carburant < low_fuel_ratio ---
         # Skip si déjà sur une île (dist=0) pour éviter une boucle infinie.
-        if self._max_energy > 0 and energy < settings.low_fuel_ratio * self._max_energy:
+        if self._max_energy > 0 and energy < int(settings.low_fuel_ratio * self._max_energy):
             if nearest and dist_nearest > 0:
                 self._set_waypoint(nearest[0], "fuel_proactive")
                 logger.info(
@@ -344,7 +359,7 @@ class AgentV2(BaseAgent):
         if not self.world:
             return None
 
-        islands = self.world.nearest_islands(pos["x"], pos["y"], zone, n=20)
+        islands = self.world.nearest_islands(pos["x"], pos["y"], zone, n=20, same_zone=True)
         direct_dist = _distance(pos["x"], pos["y"], dest["x"], dest["y"], zone)
         best = None
         best_detour = MAX_DETOUR_COST + 1
@@ -432,7 +447,7 @@ class AgentV2(BaseAgent):
         """Nouvelle île : programme un retour vers l'île connue la plus proche pour valider."""
         logger.info("🆕 Nouvelle île découverte : (%s,%s) — retour vers île connue pour valider", ix, iy)
 
-        nearest = self.world.nearest_islands(ix, iy, self._current_zone, n=1) if self.world else []
+        nearest = self.world.nearest_islands(ix, iy, self._current_zone, n=1, same_zone=True) if self.world else []
         if nearest:
             self._set_waypoint(nearest[0], "validate_discovery")
             logger.info(
@@ -465,22 +480,31 @@ class AgentV2(BaseAgent):
 
     def _retreat_to_nearest_island(self) -> None:
         """En cas d'erreur bloquante, retour vers l'île connue la plus proche."""
-        if not self.world or not self._current_pos:
+        if not self._current_pos:
             return
-        nearest = self.world.nearest_islands(
-            self._current_pos["x"], self._current_pos["y"], self._current_zone, n=1,
-        )
-        if nearest:
-            self._set_waypoint(nearest[0], "error_retreat")
-            logger.info(
-                "🔙 Repli vers île (%s,%s) suite à erreur",
-                nearest[0]["x"], nearest[0]["y"],
+
+        if self.world:
+            # Priorité : même zone
+            nearest = self.world.nearest_islands(
+                self._current_pos["x"], self._current_pos["y"], self._current_zone, n=1, same_zone=True,
             )
-        else:
-            # Fallback: retour à la dernière île en mémoire
-            last = self.memory.last_known_island_position()
-            self._set_waypoint(last, "error_retreat_fallback")
-            logger.info("🔙 Repli vers dernière île connue (%s,%s)", last["x"], last["y"])
+            # Fallback : toutes zones
+            if not nearest:
+                nearest = self.world.nearest_islands(
+                    self._current_pos["x"], self._current_pos["y"], self._current_zone, n=1,
+                )
+            if nearest:
+                self._set_waypoint(nearest[0], "error_retreat")
+                logger.info(
+                    "🔙 Repli vers île (%s,%s) suite à erreur",
+                    nearest[0]["x"], nearest[0]["y"],
+                )
+                return
+
+        # Fallback final : dernière île en mémoire
+        last = self.memory.last_known_island_position()
+        self._set_waypoint(last, "error_retreat_fallback")
+        logger.info("🔙 Repli vers dernière île connue (%s,%s)", last["x"], last["y"])
 
     # ------------------------------------------------------------------
     # Zone boundary handling
@@ -489,19 +513,23 @@ class AgentV2(BaseAgent):
     async def _handle_zone_boundary(self) -> bool:
         """Tente un upgrade du bateau. Si échec, retour à l'île la plus proche."""
         logger.info("🚧 Bordure de zone — tentative d'upgrade")
-        resp = await self._send("ship:upgrade")
-        if resp.get("status") == "ok":
-            logger.info("⬆️  Upgrade réussi — retry du move")
-            return True
 
-        logger.warning("⬆️  Upgrade échoué : %s — repli vers île la plus proche", resp.get("error"))
-        # Retour à l'île connue la plus proche.
-        if self.world and self._current_pos:
-            nearest = self.world.nearest_islands(
-                self._current_pos["x"], self._current_pos["y"], self._current_zone, n=1,
-            )
-            if nearest:
-                self._set_waypoint(nearest[0], "zone_boundary_retreat")
-                return True
+        # L'upgrade nécessite un level — récupérer le prochain
+        next_resp = await self._send("ship:next-level")
+        if next_resp.get("status") == "ok" and next_resp.get("data"):
+            level = next_resp["data"].get("level", {}).get("id")
+            if level:
+                resp = await self._send("ship:upgrade", {"level": level})
+                if resp.get("status") == "ok":
+                    logger.info("⬆️  Upgrade réussi (level %s) — retry du move", level)
+                    return True
+                logger.warning("⬆️  Upgrade échoué : %s", resp.get("error"))
+            else:
+                logger.warning("⬆️  Pas de level trouvé dans ship:next-level")
+        else:
+            logger.warning("⬆️  ship:next-level échoué : %s", next_resp.get("error"))
 
-        return False
+        # Repli vers l'île la plus proche dans la même zone
+        logger.info("🔙 Repli vers île la plus proche")
+        self._retreat_to_nearest_island()
+        return True
