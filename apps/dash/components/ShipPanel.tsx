@@ -99,7 +99,7 @@ export function ShipPanel({
   const currentLevelId = shipNextLevel?.level ? shipNextLevel.level.id - 1 : null;
 
   // Calcul des ressources manquantes pour l'upgrade
-  const resourceMap = new Map(playerResources?.map((r) => [r.type, r.quantity]) ?? []);
+  const resourceMap = new Map<string, number>(playerResources?.map((r) => [r.type, r.quantity]) ?? []);
   const costEntries = shipNextLevel?.costResources
     ? (Object.entries(shipNextLevel.costResources) as [string, number][])
     : [];

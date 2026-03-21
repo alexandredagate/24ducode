@@ -78,7 +78,7 @@ export function PlayerCard({ player, storage, onUpgradeStorage }: PlayerCardProp
 
       {/* Upgrade entrepôt */}
       {storage && (() => {
-        const resourceMap = new Map(player.resources.map((r) => [r.type, r.quantity]));
+        const resourceMap = new Map<string, number>(player.resources.map((r) => [r.type, r.quantity]));
         const costEntries = Object.entries(storage.costResources) as [string, number][];
         const canUpgrade = costEntries.every(([res, cost]) => (resourceMap.get(res) ?? 0) >= cost);
 
