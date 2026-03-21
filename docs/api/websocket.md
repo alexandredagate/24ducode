@@ -13,6 +13,8 @@ Client                          Serveur
   |--- emit("message", payload) -->|  (route selon "command")
   |<-- emit("response", result) ---|
   |                                |
+  |<-- emit("map:update", grid) ---|  (broadcast a TOUS les clients apres un ship:move)
+  |                                |
 ```
 
 ## Connexion
@@ -75,6 +77,7 @@ Si un `accessToken` est fourni au handshake, il est verifie automatiquement :
 | `player:details`    | Oui          | Details du joueur                    |
 | `player:resources`  | Oui          | Ressources du joueur                 |
 | `ship:move`         | Oui          | Deplacer un bateau                   |
+| `map:grid`          | Non          | Recuperer la carte complete           |
 
 ---
 
@@ -322,19 +325,111 @@ Deplace un bateau dans une direction donnee.
 }
 ```
 
+**Effet secondaire :** apres chaque `ship:move` reussi, les cellules decouvertes sont sauvegardees en MongoDB et un evenement `map:update` est **broadcast a tous les clients connectes** (voir section Evenements serveur).
+
+---
+
+### `map:grid`
+
+Recupere la carte complete sous forme de grille. Chaque cellule est representee par un caractere :
+- `0` = mer (SEA)
+- `1` = terre (SAND, ROCKS)
+- ` ` (espace) = zone inconnue
+
+**Requete :**
+```json
+{
+  "command": "map:grid"
+}
+```
+
+**Reponse succes :**
+```json
+{
+  "command": "map:grid",
+  "status": "ok",
+  "data": {
+    "grid": [
+      "  000  ",
+      " 00100 ",
+      "0011100",
+      " 00100 ",
+      "  000  "
+    ],
+    "minX": -3,
+    "maxX": 3,
+    "minY": -2,
+    "maxY": 2,
+    "width": 7,
+    "height": 5
+  }
+}
+```
+
+**Reponse succes (aucune cellule decouverte) :**
+```json
+{
+  "command": "map:grid",
+  "status": "ok",
+  "data": {
+    "grid": [],
+    "minX": 0,
+    "maxX": 0,
+    "minY": 0,
+    "maxY": 0,
+    "width": 0,
+    "height": 0
+  }
+}
+```
+
+La grille se lit ligne par ligne du `minY` au `maxY`, chaque caractere representant une colonne de `minX` a `maxX`.
+
+---
+
+## Evenements serveur (broadcast)
+
+Ces evenements sont emis par le serveur **a tous les clients** sans qu'ils aient besoin de les demander.
+
+### `map:update`
+
+Emis a **tous les clients connectes** apres chaque `ship:move` reussi. Contient la carte mise a jour.
+
+**Evenement :** `map:update`
+
+```json
+{
+  "command": "map:update",
+  "status": "ok",
+  "data": {
+    "grid": ["00000", "00110", "00100"],
+    "minX": -2,
+    "maxX": 2,
+    "minY": -1,
+    "maxY": 1,
+    "width": 5,
+    "height": 3
+  }
+}
+```
+
+> Dans Postman : ajouter un listener sur `map:update` dans la section **Events** pour recevoir les mises a jour automatiques.
+
 ---
 
 ## Flux d'utilisation typique
 
 ```
 1. Se connecter au WebSocket
-2. auth:login    -> obtenir accessToken + refreshToken
-3. player:details    -> voir les infos du joueur
-4. player:resources  -> voir les ressources
-5. ship:move         -> deplacer le bateau
-6. ... repeter 3-5 ...
-7. auth:refresh      -> renouveler les tokens si expiration
-8. auth:logout       -> se deconnecter
+2. Ecouter les evenements "response" et "map:update"
+3. auth:login        -> obtenir accessToken + refreshToken
+4. map:grid          -> recuperer la carte actuelle
+5. player:details    -> voir les infos du joueur
+6. player:resources  -> voir les ressources
+7. ship:move         -> deplacer le bateau (declenche un map:update broadcast)
+8. ... repeter 5-7 ...
+9. auth:refresh      -> renouveler les tokens si expiration
+10. auth:logout      -> se deconnecter
 ```
 
 ## Tokens JWT
@@ -351,5 +446,14 @@ Les secrets et durees sont configurables via les variables d'environnement `ACCE
 1. Ouvrir Postman -> **New** -> **Socket.IO**
 2. URL : `http://localhost:3001`
 3. Se connecter
-4. Dans **Events** -> ajouter un listener sur `response`
+4. Dans **Events** -> ajouter des listeners sur `response` et `map:update`
 5. Envoyer les messages sur l'evenement `message` (defaut)
+
+## Base de donnees
+
+Les cellules decouvertes sont stockees dans MongoDB (collection `cells`).
+Chaque cellule est identifiee par son `id` et mise a jour via upsert (pas de doublons).
+
+Variables d'environnement :
+- `MONGO_URI` — URI de connexion MongoDB (defaut: `mongodb://localhost:27017`)
+- `MONGO_DB` — nom de la base (defaut: `game3026`)
