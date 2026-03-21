@@ -88,6 +88,54 @@ paths:
                 -
                     api-key: []
             description: Déplacement du bateau
+    /taxes:
+        get:
+            tags:
+                - taxes
+            parameters:
+                -
+                    name: status
+                    description: ''
+                    schema:
+                        enum:
+                            - DUE
+                            - PAID
+                        type: string
+                    in: query
+                    required: false
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: '#/components/schemas/Taxe'
+                    description: Liste des taxes en fonction des filtres si présent ou non.
+            security:
+                -
+                    api-key: []
+            description: Consulte les taxes du joueur
+    '/taxes/{taxId}':
+        description: Payer une taxe
+        put:
+            tags:
+                - taxes
+            parameters:
+                -
+                    name: taxId
+                    description: Id de la taxe à payer
+                    schema:
+                        type: string
+                    in: path
+                    required: true
+            responses:
+                '200':
+                    description: Taxe payée
+            security:
+                -
+                    api-key: []
+            description: Payer la taxe définie
     /players/register:
         description: ''
         post:
@@ -134,6 +182,217 @@ paths:
                 -
                     api-key: []
             description: 'Donne les infos nécessaires du joueurs: solde, ressources, îles découvertes, etc.'
+    /ship/next-level:
+        get:
+            tags:
+                - ship
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Ship'
+                    description: Caractéristiques du bateau avec son prix.
+            security:
+                -
+                    api-key: []
+            description: Permet de récupérer les informations pour upgrader son bateau au prochain niveau.
+    /ship/upgrade:
+        put:
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpgradeShip'
+                required: true
+            tags:
+                - ship
+            responses:
+                '200':
+                    description: Réponse si upgrade acceptée.
+            description: Améliorer son bateau si on dispose des ressources nécessaires.
+    /storage/next-level:
+        get:
+            tags:
+                - storage
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Storage'
+                    description: Informations du prochain niveau d'entrepôt.
+            security:
+                -
+                    api-key: []
+    /storage/upgrade:
+        put:
+            tags:
+                - storage
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Storage'
+                    description: Infos du nouveau storage.
+            security:
+                -
+                    api-key: []
+            description: Améliorer le storage au prochain niveau.
+    /marketplace/offers:
+        get:
+            tags:
+                - marketplace
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: '#/components/schemas/Offer'
+                    description: Liste des offres en cours.
+            security:
+                -
+                    api-key: []
+            description: Afficher toutes les offres en cours.
+        post:
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/OfferCreateRequest'
+            tags:
+                - marketplace
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Offer'
+                    description: Offre mise en ligne.
+            security:
+                -
+                    api-key: []
+            description: Mettre en ligne une offre.
+    /marketplace/purchases:
+        post:
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/Purchase'
+            tags:
+                - marketplace
+            responses:
+                '201':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Purchase'
+                    description: Achaté validé
+            security:
+                -
+                    api-key: []
+            description: Acheter une offre disponible.
+    /thefts:
+        description: |+
+
+        get:
+            tags:
+                - thefts
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: '#/components/schemas/Theft'
+                    description: Liste des vols
+            security:
+                -
+                    api-key: []
+            description: Consulter tous vos vols (en cours et passés).
+    /thefts/player:
+        description: Lancer une horde de pirates pour piller des ressources aux autres joueurs.
+        post:
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/TheftRequest'
+            tags:
+                - thefts
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Theft'
+                    description: 'Tentative de vol déclenchée, le vol sera résolu dans x minutes.'
+            security:
+                -
+                    api-key: []
+            description: Attaque le joueur le plus riche sur la ressource ciblée.
+    '/marketplace/offers/{id}':
+        get:
+            tags:
+                - marketplace
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Offer'
+                    description: Infos de l'offre
+            security:
+                -
+                    api-key: []
+            description: Consulter une offre
+        delete:
+            tags:
+                - marketplace
+            parameters:
+                -
+                    name: id
+                    description: Id de l'offre
+                    schema:
+                        type: string
+                    in: path
+                    required: true
+            responses:
+                '204':
+                    description: Offre supprimée
+            security:
+                -
+                    api-key: []
+            description: Supprimer une offre.
+        patch:
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/OfferCreateRequest'
+            tags:
+                - marketplace
+            parameters:
+                -
+                    name: id
+                    description: Id de l'offre
+                    schema:
+                        type: string
+                    in: path
+                    required: true
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Offer'
+                    description: Offre mise à jour.
+            description: Mettre à jour une offre (seulement la quantité et/ou le prix).
 components:
     schemas:
         SignupCodeResponse:
@@ -244,6 +503,15 @@ components:
                     type: string
             example:
                 direction: E
+        ShipBuildResponse:
+            title: Root Type for ShipBuildResponse
+            description: ''
+            type: object
+            properties:
+                shipId:
+                    type: string
+            example:
+                shipId: 8966f75f-0e9f-4695-a3cc-c412d09bcc10
         ShipMoveResponse:
             title: Root Type for ShipMoveResponse
             description: ''
@@ -374,6 +642,68 @@ components:
             example:
                 codeError: GAME_OVER_INSERT_COINS
                 message: Vous devez payer l'amende.
+        ShipLevel:
+            title: Root Type for ShipLevel
+            description: ''
+            type: object
+            properties:
+                id:
+                    format: int32
+                    type: integer
+                name:
+                    type: string
+                visibilityRange:
+                    format: int32
+                    type: integer
+                maxMovement:
+                    format: int32
+                    type: integer
+                speed:
+                    format: int32
+                    type: integer
+            example:
+                id: 1
+                name: barque
+                visibilityRange: 1
+                maxMovement: 5
+                speed: 1
+        Taxe:
+            title: Root Type for Taxe
+            description: Représente une amende à payer
+            type: object
+            properties:
+                id:
+                    type: string
+                type:
+                    enum:
+                        - RESCUE
+                        - CHEAT
+                    type: string
+                state:
+                    enum:
+                        - DUE
+                        - PAID
+                    type: string
+                amount:
+                    type: integer
+                remainingTime:
+                    type: integer
+                player:
+                    $ref: '#/components/schemas/Player'
+                    properties:
+                        id:
+                            type: string
+                        name:
+                            type: string
+            example:
+                id: 95355542-635a-43da-a153-ef1c4bc9246f
+                type: RESCUE
+                state: PAID
+                amount: 100
+                remainingTime: 0
+                player:
+                    id: 62982b8e-e1b1-4402-99f4-b427e0dfad0c
+                    name: Joueur 1
         Resource:
             title: Root Type for Resource
             description: >-
@@ -506,6 +836,184 @@ components:
                     type: string
             example:
                 mail: mail.test@gmail.com
+        PriceResources:
+            title: Root Type for PriceResources
+            description: ''
+            type: object
+            properties:
+                FERONIUM:
+                    format: int32
+                    type: integer
+                BOISIUM:
+                    format: int32
+                    type: integer
+                CHARBONIUM:
+                    format: int32
+                    type: integer
+            example:
+                FERONIUM: 500
+                BOISIUM: 250
+                CHARBONIUM: 250
+        UpgradeShip:
+            title: Root Type for UpgradeShip
+            description: ''
+            type: object
+            properties:
+                level:
+                    format: int32
+                    type: integer
+            example:
+                level: 2
+        Storage:
+            title: Root Type for Storage
+            description: ''
+            type: object
+            properties:
+                id:
+                    type: integer
+                name:
+                    type: string
+                maxResources:
+                    $ref: '#/components/schemas/PriceResources'
+                    properties:
+                        FERONIUM:
+                            format: int32
+                            type: integer
+                        BOISIUM:
+                            format: int32
+                            type: integer
+                        CHARBONIUM:
+                            format: int32
+                            type: integer
+                costResources:
+                    $ref: '#/components/schemas/PriceResources'
+                    properties:
+                        FERONIUM:
+                            format: int32
+                            type: integer
+                        BOISIUM:
+                            format: int32
+                            type: integer
+                        CHARBONIUM:
+                            format: int32
+                            type: integer
+            example:
+                id: 2
+                name: Cabane
+                maxResources:
+                    FERONIUM: 5000
+                    BOISIUM: 2500
+                    CHARBONIUM: 2500
+                costResources:
+                    FERONIUM: 100
+                    BOISIUM: 50
+                    CHARBONIUM: 50
+        Offer:
+            title: Root Type for Offer
+            description: ''
+            type: object
+            properties:
+                id:
+                    type: string
+                owner:
+                    type: object
+                    properties:
+                        name:
+                            type: string
+                resourceType:
+                    type: string
+                quantityIn:
+                    format: int32
+                    type: integer
+                pricePerResource:
+                    format: int32
+                    type: integer
+            example:
+                id: 345707cf-fae4-4fd5-a9f2-f0d5ee9c1959
+                owner:
+                    name: admin
+                resourceType: BOISIUM
+                quantityIn: 1000
+                pricePerResource: 1
+        OfferCreateRequest:
+            title: Root Type for OfferCreateRequest
+            description: ''
+            type: object
+            properties:
+                resourceType:
+                    enum:
+                        - BOISIUM
+                        - FERONIUM
+                        - CHARBONIUM
+                    type: string
+                quantityIn:
+                    format: int32
+                    type: integer
+                pricePerResource:
+                    format: int32
+                    type: integer
+            example:
+                resourceType: CHARBONIUM
+                quantityIn: 1000
+                pricePerResource: 2
+        Purchase:
+            title: Root Type for Purchase
+            description: ''
+            type: object
+            properties:
+                quantity:
+                    type: integer
+                offerId:
+                    type: string
+            example:
+                quantity: 100
+                offerId: b383e690-ac21-4167-bbea-9abee5f2ec8e
+        Theft:
+            title: Root Type for Theft
+            description: '    '
+            type: object
+            properties:
+                id:
+                    type: string
+                resourceType:
+                    type: string
+                amountAttempted:
+                    type: integer
+                moneySpent:
+                    type: integer
+                createdAt:
+                    type: string
+                resolveAt:
+                    type: string
+                status:
+                    type: string
+                chance:
+                    enum:
+                        - FAIBLE
+                        - MOYENNE
+                        - FORTE
+                    type: string
+            example:
+                id: 21b06126-1ba5-4037-b1e5-b6c8a5a15769
+                resourceType: FERONIUM
+                amountAttempted: 0
+                moneySpent: 2000
+                createdAt: '2026-03-18T11:52:07.558829'
+                resolveAt: '2026-03-18T12:12:07.558771'
+                status: PENDING
+                chance: FORTE
+        TheftRequest:
+            title: Root Type for TheftRequest
+            description: ''
+            type: object
+            properties:
+                resourceType:
+                    type: string
+                moneySpent:
+                    type: integer
+            example:
+                resourceType: BOISIUM
+                moneySpent: 300
     securitySchemes:
         api-key:
             type: apiKey
@@ -522,3 +1030,15 @@ tags:
     -
         name: registration
         description: Inscription au jeu 3026
+    -
+        name: taxes
+        description: ''
+    -
+        name: storage
+        description: ''
+    -
+        name: marketplace
+        description: ''
+    -
+        name: thefts
+        description: ''
