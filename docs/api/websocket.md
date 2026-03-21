@@ -15,6 +15,8 @@ Client                          Serveur
   |                                |
   |<-- emit("map:update", grid) ---|  (broadcast a TOUS les clients apres un ship:move)
   |                                |
+  |<-- emit("ship:position", pos) -|  (broadcast a TOUS les clients apres un ship:move)
+  |                                |
   |<-- emit("broker:event", msg) --|  (broadcast depuis le broker AMQP du jeu)
   |                                |
 ```
@@ -80,6 +82,7 @@ Si un `accessToken` est fourni au handshake, il est verifie automatiquement :
 | `player:resources`           | Oui  | Ressources du joueur                           |
 | `ship:build`                 | Oui  | Construire un bateau                           |
 | `ship:move`                  | Oui  | Deplacer un bateau                             |
+| `ship:location`              | Oui  | Position actuelle du bateau                    |
 | `ship:next-level`            | Oui  | Infos du prochain niveau du bateau             |
 | `ship:upgrade`               | Oui  | Ameliorer le bateau                            |
 | `tax:list`                   | Oui  | Lister les taxes                               |
@@ -280,7 +283,37 @@ Construit un bateau. Il sera place le long d'une cote de l'ile de depart.
 }
 ```
 
-**Effet secondaire :** les cellules decouvertes sont sauvegardees en MongoDB et un `map:update` est broadcast a tous les clients.
+**Effets secondaires :**
+- Les cellules decouvertes sont sauvegardees en MongoDB (collection `cells`)
+- La position du bateau est sauvegardee en MongoDB (collection `ship_position`)
+- Un `map:update` est broadcast a tous les clients
+- Un `ship:position` est broadcast a tous les clients avec la nouvelle position et l'energie
+
+---
+
+### `ship:location`
+
+Retourne la derniere position connue du bateau (stockee en DB). Necessite au moins un `ship:move` prealable.
+
+**Requete :**
+```json
+{ "command": "ship:location" }
+```
+
+**Reponse succes :**
+```json
+{
+  "command": "ship:location",
+  "status": "ok",
+  "data": {
+    "position": { "id": "0fa50f7b-...", "x": 0, "y": -5, "type": "SEA", "zone": 1 },
+    "energy": 83
+  }
+}
+```
+
+**Erreurs possibles :**
+- `"No position known yet — move the ship first"`
 
 ---
 
@@ -716,6 +749,19 @@ Emis a **tous les clients connectes** apres chaque `ship:move` reussi.
 }
 ```
 
+### `ship:position`
+
+Emis a **tous les clients connectes** apres chaque `ship:move` reussi. Permet de suivre la position du bateau en temps reel.
+
+**Evenement :** `ship:position`
+
+```json
+{
+  "position": { "id": "0fa50f7b-...", "x": 0, "y": -5, "type": "SEA", "zone": 1 },
+  "energy": 83
+}
+```
+
 ### `broker:event`
 
 Emis a **tous les clients connectes** lorsqu'un message arrive du broker AMQP du jeu 3026 (nouvelles offres, vols, decouvertes, etc.).
@@ -766,13 +812,14 @@ Configurable via `ACCESS_SECRET`, `REFRESH_SECRET`, `ACCESS_TTL`, `REFRESH_TTL`.
 1. Ouvrir Postman -> **New** -> **Socket.IO**
 2. URL : `http://localhost:3001`
 3. Se connecter
-4. Dans **Events** -> ajouter des listeners sur `response`, `map:update` et `broker:event`
+4. Dans **Events** -> ajouter des listeners sur `response`, `map:update`, `ship:position` et `broker:event`
 5. Envoyer les messages sur l'evenement `message` (defaut)
 
 ## Base de donnees
 
 Les cellules decouvertes sont stockees dans MongoDB (collection `cells`).
-Chaque cellule est upsertee par son `id` (pas de doublons).
+Chaque cellule est upsertee par ses coordonnees `{x, y}` (pas de doublons).
+La position du bateau est stockee dans la collection `ship_position` (upsert par `codingGameId`).
 
 Variables d'environnement :
 - `MONGO_URI` — URI de connexion MongoDB

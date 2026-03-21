@@ -15,19 +15,11 @@ Broker AMQP (jeu 3026)         Serveur API             Clients Socket.IO
 
 ## Configuration
 
-| Variable        | Description                                       | Exemple                                                        |
-|-----------------|---------------------------------------------------|----------------------------------------------------------------|
-| `BROKER_HOST`   | Hostname du broker                                | `b-a5095b9b-3c4d-4fe7-8df1-8031e8808618.mq.eu-west-3.on.aws` |
-| `BROKER_PORT`   | Port AMQPS                                        | `5671`                                                         |
-| `BROKER_USER`   | Nom d'equipe (espaces remplaces par `_`)          | `Mon_Equipe`                                                   |
-| `BROKER_PASS`   | codingGameId de l'equipe                          | `eyJhbGciOiJIUzI1NiIs...`                                     |
-| `BROKER_QUEUE`  | Queue dediee au joueur                            | `user.eyJhbGciOiJIUzI1NiIs...`                                |
-
-Les 3 variables `BROKER_USER`, `BROKER_PASS` et `BROKER_QUEUE` sont obligatoires. Si elles sont absentes, le broker est ignore au demarrage.
+La connexion au broker est hardcodee dans `apps/api/services/broker.ts` (URL AMQP, queue dediee).
 
 ## Connexion
 
-- Protocole : **AMQPS** (AMQP over TLS, port 5671)
+- Protocole : **AMQP** (port 5672)
 - Reconnexion automatique toutes les 5 secondes en cas de deconnexion
 - Les messages sont acquittes (ack) apres traitement
 
