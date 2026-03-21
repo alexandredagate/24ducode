@@ -13,7 +13,7 @@ import type { ClientCommand, ServerResponse, CommandName } from "types";
 
 const AUTH_COMMANDS = new Set<CommandName>(["auth:login", "auth:refresh", "auth:logout"]);
 const PLAYER_COMMANDS = new Set<CommandName>(["player:details", "player:resources"]);
-const SHIP_COMMANDS = new Set<CommandName>(["ship:build", "ship:move", "ship:next-level", "ship:upgrade"]);
+const SHIP_COMMANDS = new Set<CommandName>(["ship:build", "ship:move", "ship:location", "ship:next-level", "ship:upgrade"]);
 const MAP_COMMANDS = new Set<CommandName>(["map:grid"]);
 const TAX_COMMANDS = new Set<CommandName>(["tax:list", "tax:pay"]);
 const STORAGE_COMMANDS = new Set<CommandName>(["storage:next-level", "storage:upgrade"]);

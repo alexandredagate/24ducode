@@ -8,7 +8,7 @@ export async function upsertCells(cells: Cell[]): Promise<void> {
   const col = getDb().collection(COLLECTION);
   const ops = cells.map((cell) => ({
     updateOne: {
-      filter: { id: cell.id },
+      filter: { x: cell.x, y: cell.y },
       update: { $set: { id: cell.id, x: cell.x, y: cell.y, type: cell.type, zone: cell.zone } },
       upsert: true,
     },

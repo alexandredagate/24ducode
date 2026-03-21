@@ -42,7 +42,15 @@ export async function handleShip(
       const mapGrid = await getMapGrid();
       io.emit("map:update", { command: "map:update", status: "ok", data: mapGrid });
 
+      io.emit("ship:position", { position: data.position, energy: data.energy });
+
       return { command: "ship:move", status: "ok", data };
+    }
+
+    case "ship:location": {
+      const codingGameId = requireAuth(socket);
+      const ship = await getShipNextLevel(codingGameId);
+      return { command: "ship:location", status: "ok", data: { position: ship.currentPosition } };
     }
 
     case "ship:next-level": {

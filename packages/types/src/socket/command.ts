@@ -7,6 +7,7 @@ export type CommandName =
   | "player:resources"
   | "ship:build"
   | "ship:move"
+  | "ship:location"
   | "ship:next-level"
   | "ship:upgrade"
   | "tax:list"
