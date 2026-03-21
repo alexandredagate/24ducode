@@ -30,8 +30,8 @@ def _dot(a: tuple[float, float], b: tuple[float, float]) -> float:
     return a[0] * b[0] + a[1] * b[1]
 
 
-def available_directions(zone: int) -> list[str]:
-    return ZONE1_DIRS if zone == 1 else ALL_DIRS
+def available_directions() -> list[str]:
+    return ZONE1_DIRS
 
 
 class Strategy(ABC):
@@ -62,11 +62,16 @@ class ExplorationV1Strategy(Strategy):
         self._target = self._random_vector()
         self._moves_on_target = 0
 
+    def reverse_vector(self) -> None:
+        """Invert the current heading (e.g. when hitting a zone boundary)."""
+        self._target = (-self._target[0], -self._target[1])
+        self._moves_on_target = 0
+
     def next_direction(self, zone: int, memory: ExplorationMemory) -> str:
         if self._moves_on_target >= self.RENEW_EVERY:
             self.reset_vector()
 
-        available = available_directions(zone)
+        available = available_directions()
         target_norm = _normalize(self._target)
 
         best = max(

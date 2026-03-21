@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     ws_reconnect_delay: float = 3.0
     coding_game_id: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjb2RpbmdnYW1lIiwic3ViIjoiNDEwYzhiNjQtOTEzZi00NmViLThiYzAtN2ExOTdjNGY1MDZkIiwicm9sZXMiOlsiVVNFUiJdfQ.hnkPxnsdQQFmwnggFKWfDRq5PPQrQ2wBkeqAYIFQklw"
     energy_buffer: int = 5
+    auto_pay_fines: bool = True
 
 
 settings = Settings()

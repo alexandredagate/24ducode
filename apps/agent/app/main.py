@@ -2,6 +2,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
@@ -19,13 +20,13 @@ logging.basicConfig(
 )
 
 
-async def _run_agent_loop() -> None:
+async def _run_agent_loop(db: MongoClient) -> None:
     """Run the agent with automatic reconnection on failure."""
     attempt = 0
     while True:
         attempt += 1
         ws = SocketIOClient(reconnect_delay=settings.ws_reconnect_delay)
-        agent = AgentV1(ws)
+        agent = AgentV1(ws, db=db)
         logger.info("Démarrage boucle agent (tentative #%s)", attempt)
         try:
             await agent.run()
@@ -58,7 +59,7 @@ async def lifespan(app: FastAPI):
     await app.state.db.connect()
     logger.info("Connexion MongoDB établie")
 
-    app.state.agent_task = asyncio.create_task(_run_agent_loop())
+    app.state.agent_task = asyncio.create_task(_run_agent_loop(app.state.db))
 
     yield
 
