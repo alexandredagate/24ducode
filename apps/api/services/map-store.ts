@@ -120,6 +120,29 @@ export async function syncDiscoveryFromPlayerDetails(
   return result.modifiedCount;
 }
 
+/**
+ * Reset : toutes les SAND → DISCOVERED, sauf HOME (5,3) → KNOWN.
+ * À exécuter une seule fois pour repartir sur une base propre.
+ */
+export async function resetDiscoveryStatus(): Promise<{ reset: number; home: number }> {
+  const col = getDb().collection(COLLECTION);
+  const resetResult = await col.updateMany(
+    { type: "SAND" },
+    { $set: { discoveryStatus: "DISCOVERED" } },
+  );
+  // Re-marquer les ALWAYS_KNOWN
+  let homeCount = 0;
+  for (const key of ALWAYS_KNOWN) {
+    const [x, y] = key.split(",").map(Number);
+    const r = await col.updateMany(
+      { x, y, type: "SAND" },
+      { $set: { discoveryStatus: "KNOWN" } },
+    );
+    homeCount += r.modifiedCount;
+  }
+  return { reset: resetResult.modifiedCount, home: homeCount };
+}
+
 // ─── Cell queries ───────────────────────────────────────────────────
 
 export async function setCellNote(x: number, y: number, note: CellNote): Promise<void> {

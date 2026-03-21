@@ -35,19 +35,25 @@ export async function handleShip(
       }
       const data = await moveShip(codingGameId, direction);
 
+      // Vérifier si la position AVANT upsert est déjà KNOWN
+      // (évite que ALWAYS_KNOWN force KNOWN + valide dans la même requête)
+      let wasKnownBeforeUpsert = false;
+      if (data.position?.type === "SAND") {
+        const cellBefore = await getCellAt(data.position.x, data.position.y);
+        wasKnownBeforeUpsert = cellBefore?.discoveryStatus === "KNOWN";
+      }
+
       const cellsToSave: Cell[] = [...(data.discoveredCells ?? [])];
       if (data.position) cellsToSave.push(data.position);
       await upsertCells(cellsToSave);
 
-      // Si le bateau est sur une île KNOWN → valider toutes les découvertes
+      // Valider les découvertes seulement si on arrive sur une île qui
+      // était DÉJÀ KNOWN avant ce move (pas juste rendue KNOWN par ALWAYS_KNOWN)
       let validated = 0;
-      if (data.position?.type === "SAND") {
-        const currentCell = await getCellAt(data.position.x, data.position.y);
-        if (currentCell?.discoveryStatus === "KNOWN") {
-          validated = await validateDiscoveries();
-          if (validated > 0) {
-            console.log(`[ship] validated ${validated} discovered cells → KNOWN`);
-          }
+      if (wasKnownBeforeUpsert) {
+        validated = await validateDiscoveries();
+        if (validated > 0) {
+          console.log(`[ship] validated ${validated} discovered cells → KNOWN`);
         }
       }
 

@@ -14,7 +14,7 @@ import type { ClientCommand, ServerResponse, CommandName } from "types";
 const AUTH_COMMANDS = new Set<CommandName>(["auth:login", "auth:refresh", "auth:logout"]);
 const PLAYER_COMMANDS = new Set<CommandName>(["player:details", "player:resources"]);
 const SHIP_COMMANDS = new Set<CommandName>(["ship:build", "ship:move", "ship:location", "ship:next-level", "ship:upgrade"]);
-const MAP_COMMANDS = new Set<CommandName>(["map:grid"]);
+const MAP_COMMANDS = new Set<CommandName>(["map:grid", "admin:reset-discovery" as CommandName]);
 const TAX_COMMANDS = new Set<CommandName>(["tax:list", "tax:pay"]);
 const STORAGE_COMMANDS = new Set<CommandName>(["storage:next-level", "storage:upgrade"]);
 const MARKETPLACE_COMMANDS = new Set<CommandName>(["marketplace:offers", "marketplace:offer", "marketplace:create-offer", "marketplace:update-offer", "marketplace:delete-offer", "marketplace:purchase"]);
@@ -57,7 +57,7 @@ export function createSocketServer(httpServer: HttpServer): SocketServer {
         } else if (SHIP_COMMANDS.has(command)) {
           response = await handleShip(socket, msg, io);
         } else if (MAP_COMMANDS.has(command)) {
-          response = await handleMap(socket, msg);
+          response = await handleMap(socket, msg, io);
         } else if (TAX_COMMANDS.has(command)) {
           response = await handleTax(socket, msg);
         } else if (STORAGE_COMMANDS.has(command)) {
