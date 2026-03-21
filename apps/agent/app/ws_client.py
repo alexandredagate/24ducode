@@ -1,50 +1,71 @@
-"""Client WebSocket sortant — connexion vers le serveur de jeu."""
+"""Client Socket.IO sortant — connexion vers le serveur de jeu."""
 import asyncio
-import json
 import logging
-from typing import Awaitable, Callable
 
-import websockets
-from websockets.exceptions import ConnectionClosed
+import socketio
 
 logger = logging.getLogger(__name__)
 
 
-class WSClient:
-    def __init__(self, url: str, reconnect_delay: float = 3.0):
-        self.url = url
+class SocketIOClient:
+    def __init__(self, reconnect_delay: float = 3.0) -> None:
         self.reconnect_delay = reconnect_delay
-        self._ws = None
-        self._running = False
+        self._sio = socketio.AsyncClient(
+            reconnection=False,
+            logger=False,
+            engineio_logger=False,
+        )
+        self._pending: asyncio.Future | None = None
+        self._access_token: str | None = None
+        self._refresh_token: str | None = None
+        self._connected = False
+
+        @self._sio.on("connect")
+        async def _on_connect():
+            self._connected = True
+            logger.info("Socket.IO connecté")
+
+        @self._sio.on("disconnect")
+        async def _on_disconnect():
+            self._connected = False
+            logger.warning("Socket.IO déconnecté")
+
+        @self._sio.on("response")
+        async def _on_response(data: dict):
+            logger.debug("Réponse : %s", data)
+            if self._pending and not self._pending.done():
+                self._pending.set_result(data)
 
     @property
     def connected(self) -> bool:
-        return self._ws is not None
+        return self._connected
 
-    async def connect_and_run(self, on_message: Callable[[dict], Awaitable[None]]):
-        """Boucle de connexion avec reconnexion automatique."""
-        self._running = True
-        while self._running:
-            try:
-                async with websockets.connect(self.url) as ws:
-                    self._ws = ws
-                    logger.info("WS connecté : %s", self.url)
-                    async for raw in ws:
-                        await on_message(json.loads(raw))
-            except ConnectionClosed as e:
-                logger.warning("WS déconnecté (%s), reconnexion dans %ss", e, self.reconnect_delay)
-            except Exception as e:
-                logger.error("WS erreur : %s, reconnexion dans %ss", e, self.reconnect_delay)
-            finally:
-                self._ws = None
-            if self._running:
-                await asyncio.sleep(self.reconnect_delay)
+    def set_tokens(self, access_token: str, refresh_token: str) -> None:
+        self._access_token = access_token
+        self._refresh_token = refresh_token
 
-    async def send(self, data: dict):
-        if self._ws:
-            await self._ws.send(json.dumps(data))
+    async def connect(self, url: str) -> None:
+        auth = {"token": self._access_token} if self._access_token else {}
+        await self._sio.connect(url, auth=auth, transports=["websocket"])
 
-    async def stop(self):
-        self._running = False
-        if self._ws:
-            await self._ws.close()
+    async def send_command(
+        self,
+        command: str,
+        payload: dict | None = None,
+        timeout: float = 30.0,
+    ) -> dict:
+        loop = asyncio.get_running_loop()
+        self._pending = loop.create_future()
+        msg: dict = {"command": command}
+        if payload is not None:
+            msg["payload"] = payload
+        await self._sio.emit("message", msg)
+        try:
+            async with asyncio.timeout(timeout):
+                return await self._pending
+        except asyncio.TimeoutError:
+            raise RuntimeError(f"Timeout en attendant la réponse pour '{command}'")
+
+    async def disconnect(self) -> None:
+        if self._connected:
+            await self._sio.disconnect()

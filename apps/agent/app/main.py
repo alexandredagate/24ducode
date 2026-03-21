@@ -1,29 +1,69 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from app.agent import Agent
+from app.agent import AgentV1
 from app.config import settings
 from app.db import MongoClient, get_db
-from app.ws_client import WSClient
+from app.ws_client import SocketIOClient
+
+logger = logging.getLogger(__name__)
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
+
+
+async def _run_agent_loop() -> None:
+    """Run the agent with automatic reconnection on failure."""
+    attempt = 0
+    while True:
+        attempt += 1
+        ws = SocketIOClient(reconnect_delay=settings.ws_reconnect_delay)
+        agent = AgentV1(ws)
+        logger.info("Démarrage boucle agent (tentative #%s)", attempt)
+        try:
+            await agent.run()
+        except asyncio.CancelledError:
+            logger.info("Arrêt demandé: fermeture propre de l'agent")
+            await ws.disconnect()
+            raise
+        except Exception as exc:
+            logger.error(
+                "Agent erreur : %s — reconnexion dans %ss",
+                exc,
+                settings.ws_reconnect_delay,
+            )
+            try:
+                await ws.disconnect()
+            except Exception:
+                pass
+            await asyncio.sleep(settings.ws_reconnect_delay)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info(
+        "Initialisation service agent | api_url=%s | mongo_db=%s | reconnect_delay=%ss",
+        settings.api_url,
+        settings.mongo_db,
+        settings.ws_reconnect_delay,
+    )
     app.state.db = MongoClient(settings.mongo_uri, settings.mongo_db)
     await app.state.db.connect()
+    logger.info("Connexion MongoDB établie")
 
-    ws = WSClient(settings.ws_server_url, settings.ws_reconnect_delay)
-    agent = Agent(ws)
-    app.state.ws = ws
-    app.state.ws_task = asyncio.create_task(ws.connect_and_run(agent.on_message))
+    app.state.agent_task = asyncio.create_task(_run_agent_loop())
 
     yield
 
-    app.state.ws_task.cancel()
-    await ws.stop()
+    logger.info("Arrêt service agent")
+    app.state.agent_task.cancel()
     await app.state.db.close()
 
 
@@ -37,7 +77,10 @@ async def root():
 
 @app.get("/health")
 async def health(db: MongoClient = get_db()):
-    ok = await db.ping()
-    ws_ok = app.state.ws.connected
-    status = {"db": "ok" if ok else "unreachable", "ws": "connected" if ws_ok else "disconnected"}
-    return JSONResponse(status, status_code=200 if (ok and ws_ok) else 503)
+    db_ok = await db.ping()
+    agent_ok = not app.state.agent_task.done()
+    status = {
+        "db": "ok" if db_ok else "unreachable",
+        "agent": "running" if agent_ok else "stopped",
+    }
+    return JSONResponse(status, status_code=200 if (db_ok and agent_ok) else 503)

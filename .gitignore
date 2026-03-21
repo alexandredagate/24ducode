@@ -40,3 +40,7 @@ yarn-error.log*
 # IDE
 .idea
 .vscode
+
+
+# Custom
+__pycache__/

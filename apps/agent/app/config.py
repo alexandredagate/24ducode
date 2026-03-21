@@ -7,8 +7,10 @@ class Settings(BaseSettings):
     mongo_uri: str = "mongodb://localhost:27017"
     mongo_db: str  = "game3026"
     api_timeout: float = 10.0
-    ws_server_url: str = "ws://localhost:9000/ws"
+    api_url: str = "http://localhost:3001"
     ws_reconnect_delay: float = 3.0
+    coding_game_id: str = ""
+    energy_buffer: int = 5
 
 
 settings = Settings()

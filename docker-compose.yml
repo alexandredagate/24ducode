@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
 
   # Dashboard Next.js
@@ -48,21 +46,21 @@ services:
 
   # Agent Python FastAPI
   agent:
-      build:
-        context: apps/agent
-        dockerfile: Dockerfile
-      container_name: ek24_agent
-      ports:
-        - "8080:8080"
-      environment:
-        - ENV=development
-        - MONGO_URI=mongodb://mongo:27017   # à adapter si tu as un service mongo
-        - MONGO_DB=game3026
-      volumes:
-        # ✅ Monte UNIQUEMENT le code source — le .venv construit dans l'image reste intact
-        - ./apps/agent/app:/app/app
-      command: >
-        uvicorn app.main:app
-        --host 0.0.0.0
-        --port 8080
-        --reload
+    build:
+      context: apps/agent
+      dockerfile: Dockerfile
+    container_name: ek24_agent
+    depends_on:
+      - api
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      # ✅ Monte UNIQUEMENT le code source — le .venv construit dans l'image reste intact
+      - ./apps/agent/app:/app/app
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8080
+      --reload
