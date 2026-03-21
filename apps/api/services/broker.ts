@@ -3,8 +3,8 @@ import type { Server as SocketServer } from "socket.io";
 
 export async function connectBroker(io: SocketServer): Promise<void> {
   console.log("[broker] disabled — skipping connection");
-  return;
-  const url = "amqp://ekonsilio:410c8b64-913f-46eb-8bc0-7a197c4f506d@b-a5095b9b-3c4d-4fe7-8df1-8031e8808618.mq.eu-west-3.on.aws:5672/";
+
+  const url = "amqps://ekonsilio:410c8b64-913f-46eb-8bc0-7a197c4f506d@b-a5095b9b-3c4d-4fe7-8df1-8031e8808618.mq.eu-west-3.on.aws:5671/";
 
   try {
     const connection = await amqp.connect(url, { rejectUnauthorized: false });
