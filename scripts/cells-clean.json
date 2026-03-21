@@ -1,0 +1,560 @@
+[
+  {
+    "id": "f8f9c413-bc5a-435a-9dbd-0a3e22d79206",
+    "x": -2,
+    "y": 5,
+    "type": "sea"
+  },
+  {
+    "id": "4491d434-ec2c-4435-8303-8baade4d584e",
+    "x": -1,
+    "y": 4,
+    "type": "sea"
+  },
+  {
+    "id": "7fbc77e8-b136-4f24-93d1-5391652247fd",
+    "x": -1,
+    "y": 5,
+    "type": "sea"
+  },
+  {
+    "id": "deb8cf0d-2687-4483-bbe3-d07bf55a667e",
+    "x": -1,
+    "y": 6,
+    "type": "sea"
+  },
+  {
+    "id": "c982448c-fe22-4fc6-9f3d-b23f97361cde",
+    "x": 0,
+    "y": 5,
+    "type": "sea"
+  },
+  {
+    "id": "d72a33e2-8e51-4eed-a893-668399b8ce0e",
+    "x": -3,
+    "y": 5,
+    "type": "sand",
+    "sandType": "discovered"
+  },
+  {
+    "id": "71c55b4d-12ff-4447-b69f-290d6d97aaf0",
+    "x": -2,
+    "y": 4,
+    "type": "sea"
+  },
+  {
+    "id": "5e3bfa45-7121-4933-b593-3477be1d414a",
+    "x": -2,
+    "y": 6,
+    "type": "sea"
+  },
+  {
+    "id": "21000abf-154a-4c44-b10a-f72fd7d56606",
+    "x": -4,
+    "y": 5,
+    "type": "sea"
+  },
+  {
+    "id": "e20d08be-bb76-4848-8ba6-736f1d135320",
+    "x": -3,
+    "y": 4,
+    "type": "sea"
+  },
+  {
+    "id": "35c033c4-ae86-4a28-a8f3-4c7e028bbb7b",
+    "x": -3,
+    "y": 6,
+    "type": "sea"
+  },
+  {
+    "id": "f56bdfc4-3110-4c81-9889-d13daa4b654c",
+    "x": -5,
+    "y": 5,
+    "type": "sea"
+  },
+  {
+    "id": "c75be1fd-c163-4272-8a63-58daeaab1eb0",
+    "x": -4,
+    "y": 4,
+    "type": "sea"
+  },
+  {
+    "id": "7e380381-e24a-4f62-89f3-3d33577c704d",
+    "x": -4,
+    "y": 6,
+    "type": "sea"
+  },
+  {
+    "id": "b6b51753-8869-4746-8315-d3e4860f3ce6",
+    "x": -6,
+    "y": 5,
+    "type": "sea"
+  },
+  {
+    "id": "e1841d96-2154-4b53-bed3-a890a4aa9ee3",
+    "x": -5,
+    "y": 4,
+    "type": "sea"
+  },
+  {
+    "id": "a52c1add-15cf-4428-98d3-e3c4463d5a2f",
+    "x": -5,
+    "y": 6,
+    "type": "sea"
+  },
+  {
+    "id": "0946667e-8d9f-497b-aff4-cdd120baff03",
+    "x": -6,
+    "y": 6,
+    "type": "sea"
+  },
+  {
+    "id": "a35ca618-7351-4005-b82a-cb35a1079436",
+    "x": -5,
+    "y": 7,
+    "type": "sea"
+  },
+  {
+    "id": "bb329f78-8a73-47f4-b665-13f5cc5b0f56",
+    "x": -4,
+    "y": 7,
+    "type": "sea"
+  },
+  {
+    "id": "5e9d5c03-9aa2-4e8e-8f12-ddd62a8d21eb",
+    "x": -3,
+    "y": 7,
+    "type": "sea"
+  },
+  {
+    "id": "33587850-a5c6-49f0-9696-55dec6eb52ee",
+    "x": -2,
+    "y": 7,
+    "type": "sea"
+  },
+  {
+    "id": "c0122a02-bf4c-4cc7-8ee9-67b78498dda0",
+    "x": -1,
+    "y": 7,
+    "type": "sand",
+    "sandType": "known"
+  },
+  {
+    "id": "eba10a09-39a1-44ad-ac4c-4e8d3a5dc060",
+    "x": 0,
+    "y": 6,
+    "type": "sea"
+  },
+  {
+    "id": "7bc20054-0eca-4086-849b-ab544c34b4be",
+    "x": -1,
+    "y": 8,
+    "type": "sea"
+  },
+  {
+    "id": "d42f63fd-aa84-47fb-b0d0-995410324732",
+    "x": 0,
+    "y": 7,
+    "type": "sea"
+  },
+  {
+    "id": "e0c45f1c-478e-484f-8152-ec1fc6549371",
+    "x": 4,
+    "y": 4,
+    "type": "sea"
+  },
+  {
+    "id": "f82466b2-50e0-46ed-86ec-2b05560ccf61",
+    "x": 5,
+    "y": 3,
+    "type": "sand",
+    "sandType": "discovered"
+  },
+  {
+    "id": "4ba5982a-b5c7-4e30-aabc-1824cd6f8768",
+    "x": 5,
+    "y": 4,
+    "type": "sea"
+  },
+  {
+    "id": "f69ee922-144f-4b94-8ceb-2fe62d7455d6",
+    "x": 5,
+    "y": 5,
+    "type": "sea"
+  },
+  {
+    "id": "eaa70e98-8b16-4a4f-a05c-4eb7b21913ed",
+    "x": 6,
+    "y": 4,
+    "type": "sea"
+  },
+  {
+    "id": "b31f1d10-f99e-49a6-a3e3-8aff8704472b",
+    "x": 4,
+    "y": 5,
+    "type": "sea"
+  },
+  {
+    "id": "9426f02f-5537-4858-80a0-3164c39a88e3",
+    "x": 5,
+    "y": 6,
+    "type": "sea"
+  },
+  {
+    "id": "4d148b48-a54e-4006-b094-92814ba89336",
+    "x": 6,
+    "y": 5,
+    "type": "sea"
+  },
+  {
+    "id": "2add72cc-9248-430e-a4ae-a8eee74036f4",
+    "x": 4,
+    "y": 6,
+    "type": "sea"
+  },
+  {
+    "id": "f1546ed3-6e8d-4142-b155-876bbf868085",
+    "x": 5,
+    "y": 7,
+    "type": "sea"
+  },
+  {
+    "id": "315ae3d1-95eb-4adf-aa7f-ea2c21b619c7",
+    "x": 6,
+    "y": 6,
+    "type": "sea"
+  },
+  {
+    "id": "147930e6-1947-4a8e-a062-0a4ff936e8cc",
+    "x": 4,
+    "y": 7,
+    "type": "sea"
+  },
+  {
+    "id": "fc4be1d3-817f-4d86-a4f4-ed2bcab140c5",
+    "x": 5,
+    "y": 8,
+    "type": "sea"
+  },
+  {
+    "id": "530c7afb-e6d2-4359-b88f-deb041a045bc",
+    "x": 6,
+    "y": 7,
+    "type": "sea"
+  },
+  {
+    "id": "8c06277d-4f82-46cd-92bd-09f7b3571c12",
+    "x": 4,
+    "y": 8,
+    "type": "sea"
+  },
+  {
+    "id": "45d6e971-f2e4-4588-bcd5-2cdee8428e95",
+    "x": 5,
+    "y": 9,
+    "type": "sea"
+  },
+  {
+    "id": "973d4892-5edc-4ef8-ba68-768166d262d3",
+    "x": 6,
+    "y": 8,
+    "type": "sea"
+  },
+  {
+    "id": "c2602329-4789-4b0a-b531-e71fae2701af",
+    "x": 3,
+    "y": 8,
+    "type": "sea"
+  },
+  {
+    "id": "5fec0af3-fe8c-4503-9bff-a48ea18fee64",
+    "x": 4,
+    "y": 9,
+    "type": "sea"
+  },
+  {
+    "id": "db7abdda-7175-4ff9-9725-b8e12cb2a370",
+    "x": 2,
+    "y": 8,
+    "type": "sea"
+  },
+  {
+    "id": "55bd4cf6-312c-4e14-b5bf-442c9c436229",
+    "x": 3,
+    "y": 7,
+    "type": "sea"
+  },
+  {
+    "id": "c4c06f95-5589-4b42-82b3-98112f71ac8b",
+    "x": 3,
+    "y": 9,
+    "type": "sea"
+  },
+  {
+    "id": "90d71b47-82e0-49e0-9998-c6172154bc97",
+    "x": 1,
+    "y": 8,
+    "type": "sea"
+  },
+  {
+    "id": "0df3a5f9-d598-4c13-a055-23f66a599d82",
+    "x": 2,
+    "y": 7,
+    "type": "sea"
+  },
+  {
+    "id": "866970e1-6f72-4c3d-9918-ec555558eec2",
+    "x": 2,
+    "y": 9,
+    "type": "sea"
+  },
+  {
+    "id": "d4289d14-9760-4293-a815-d777d1b0f6f5",
+    "x": 0,
+    "y": 8,
+    "type": "sea"
+  },
+  {
+    "id": "dec83300-b4fa-49c0-abf4-656389d65f7e",
+    "x": 1,
+    "y": 7,
+    "type": "sand",
+    "sandType": "discovered"
+  },
+  {
+    "id": "0628ddf6-b0f4-4f5c-b8ea-c86e9c6f61ae",
+    "x": 1,
+    "y": 9,
+    "type": "sea"
+  },
+  {
+    "id": "cf7aa4dc-cbdb-4cf1-bcaa-9063407ed933",
+    "x": 0,
+    "y": 9,
+    "type": "sea"
+  },
+  {
+    "id": "1ba63504-8cc0-4c55-956f-6af2127bd3b5",
+    "x": -2,
+    "y": 9,
+    "type": "sea"
+  },
+  {
+    "id": "5e70d03c-b050-47fc-bd68-8e4bc7bc195a",
+    "x": -1,
+    "y": 9,
+    "type": "sea"
+  },
+  {
+    "id": "47ec02d6-3de0-4b05-8cf8-a64953560bcd",
+    "x": -1,
+    "y": 10,
+    "type": "sea"
+  },
+  {
+    "id": "568fe3b1-0474-4cb6-aed6-9de0c3468c1b",
+    "x": -3,
+    "y": 9,
+    "type": "sea"
+  },
+  {
+    "id": "82184236-e3b0-4d48-bb96-9e3402a1ebef",
+    "x": -2,
+    "y": 8,
+    "type": "sea"
+  },
+  {
+    "id": "b38f1d83-efa4-4cfb-8e27-06e697598db7",
+    "x": -2,
+    "y": 10,
+    "type": "sea"
+  },
+  {
+    "id": "734a9edf-68e5-4c46-a6bc-9825d5e1ce77",
+    "x": -4,
+    "y": 9,
+    "type": "sea"
+  },
+  {
+    "id": "7478dc9b-75f0-4296-9e49-6412b4ecfc44",
+    "x": -3,
+    "y": 8,
+    "type": "sea"
+  },
+  {
+    "id": "4c7ec8f0-18ed-4552-868f-9546d4a1020b",
+    "x": -3,
+    "y": 10,
+    "type": "sea"
+  },
+  {
+    "id": "1f6f4ff1-0469-48a1-ab92-0627f50cb108",
+    "x": -5,
+    "y": 9,
+    "type": "sea"
+  },
+  {
+    "id": "660311e6-9270-45f3-a0ee-aa80da304cdb",
+    "x": -4,
+    "y": 8,
+    "type": "sea"
+  },
+  {
+    "id": "c4b41214-1856-45c0-b8d6-c923de2b7941",
+    "x": -4,
+    "y": 10,
+    "type": "sea"
+  },
+  {
+    "id": "293a0cdc-7570-48d8-8952-b2945621a7f9",
+    "x": -5,
+    "y": 8,
+    "type": "sea"
+  },
+  {
+    "id": "6ec8d86f-abb3-4b6a-9d54-c37afd700830",
+    "x": -3,
+    "y": 3,
+    "type": "sea"
+  },
+  {
+    "id": "b774e46a-6baf-4468-a3e7-705a9509417e",
+    "x": 4,
+    "y": 2,
+    "type": "sea"
+  },
+  {
+    "id": "95ab4311-8d4f-4ddd-bdf7-9892e8892bda",
+    "x": 5,
+    "y": 1,
+    "type": "sea"
+  },
+  {
+    "id": "12c18243-3043-4ca0-a3d7-ea7ee2be971d",
+    "x": 5,
+    "y": 2,
+    "type": "sea"
+  },
+  {
+    "id": "b4e883b8-4bbf-4737-a7d2-f8ccb6a3418e",
+    "x": 6,
+    "y": 2,
+    "type": "sea"
+  },
+  {
+    "id": "e725621b-a6b3-485e-baf3-1231979189cb",
+    "x": 4,
+    "y": 1,
+    "type": "sea"
+  },
+  {
+    "id": "bcfdd93a-b8de-499c-83d2-6b5026d275ce",
+    "x": 5,
+    "y": 0,
+    "type": "sea"
+  },
+  {
+    "id": "291451a8-5031-4498-bc5d-5d1de4c4eace",
+    "x": 6,
+    "y": 1,
+    "type": "sea"
+  },
+  {
+    "id": "83401b68-b77c-4e10-befb-1c58c2994a32",
+    "x": 4,
+    "y": 3,
+    "type": "sea"
+  },
+  {
+    "id": "3ca9b2a3-6887-490a-8bc0-60ebc3a2bd45",
+    "x": 6,
+    "y": 3,
+    "type": "sea"
+  },
+  {
+    "id": "3abefc1d-76ed-4fd7-b81a-2ed148087ba1",
+    "x": 3,
+    "y": 6,
+    "type": "sea"
+  },
+  {
+    "id": "b186d93b-b713-4215-9b0f-4b8a91197e97",
+    "x": 2,
+    "y": 6,
+    "type": "sea"
+  },
+  {
+    "id": "d81a79b5-f0ab-43bf-a338-8f59f256cbd4",
+    "x": 3,
+    "y": 5,
+    "type": "sand",
+    "sandType": "discovered"
+  },
+  {
+    "id": "cc582440-a0de-4d8f-a55a-a81b316d086a",
+    "x": 1,
+    "y": 6,
+    "type": "sea"
+  },
+  {
+    "id": "4be144c6-c6fd-471a-bd64-919afe5a8bd8",
+    "x": 2,
+    "y": 5,
+    "type": "sea"
+  },
+  {
+    "id": "71bbad74-6e2b-40ee-bcf6-4a2e7db5af12",
+    "x": 1,
+    "y": 5,
+    "type": "sea"
+  },
+  {
+    "id": "3c96e2c3-ef59-4740-ae90-a8b5f2a6e3e6",
+    "x": -1,
+    "y": 3,
+    "type": "sea"
+  },
+  {
+    "id": "a2799012-6086-4081-b870-317e4be9e08a",
+    "x": 0,
+    "y": 4,
+    "type": "sea"
+  },
+  {
+    "id": "069ae438-451f-497f-8b89-a42ce7dd5117",
+    "x": -2,
+    "y": 3,
+    "type": "sea"
+  },
+  {
+    "id": "e1a1ffe3-9001-4484-87a4-5b116cff8c73",
+    "x": -1,
+    "y": 2,
+    "type": "sea"
+  },
+  {
+    "id": "b5a1c54d-0b3f-447f-b09a-8a830a17d6ce",
+    "x": 0,
+    "y": 3,
+    "type": "sea"
+  },
+  {
+    "id": "33166b3b-e098-4779-b4bf-2429b3b0ee37",
+    "x": -2,
+    "y": 2,
+    "type": "sea"
+  },
+  {
+    "id": "1a7d3b8c-b97a-49b1-9cd2-59c7b2884bad",
+    "x": -1,
+    "y": 1,
+    "type": "sand",
+    "sandType": "discovered"
+  },
+  {
+    "id": "7d8b4ca2-1c13-4f84-967c-e6c9a5de891c",
+    "x": 0,
+    "y": 2,
+    "type": "sea"
+  }
+]

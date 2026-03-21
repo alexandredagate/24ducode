@@ -20,5 +20,9 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "dependencies": {
+    "socket.io-client": "^4.8.3",
+    "tsx": "^4.21.0"
+  }
 }
