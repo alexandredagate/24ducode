@@ -93,12 +93,12 @@ function buildIslandMesh(
     updatable: true,
   }, scene);
 
-  ground.position.set(centerWX, 0.5, centerWZ);
+  ground.position.set(centerWX, 0.25, centerWZ);
 
   const positions = ground.getVerticesData(VertexBuffer.PositionKind);
   if (!positions) return null;
 
-  const peakH = tileSize * 0.2 + group.cells.length * 0.03;
+  const peakH = Math.min(0.8, tileSize * 0.25 + Math.log(1 + group.cells.length) * 0.15);
 
   for (let i = 0; i < positions.length; i += 3) {
     const wx = positions[i] + centerWX;

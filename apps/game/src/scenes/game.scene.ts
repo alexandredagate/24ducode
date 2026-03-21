@@ -4,8 +4,12 @@ import { createMap } from "../utils/create-map";
 import { createBoat } from "../utils/boat";
 import { createBoatController } from "../utils/boat-controller";
 import mapRaw from "../assets/map.txt?raw";
-import { connect, requestMapGrid, onMapUpdate } from "../services/socket";
-import { serverGridToGameMap } from "../services/map-converter";
+import {
+    connect, requestMapGrid, onMapUpdate, onBrokerEvent,
+    login, buildShip, getShipNextLevel,
+    getMapMeta,
+} from "../services/socket";
+import { serverGridToGameMap, serverToGrid } from "../services/map-converter";
 
 function createSkybox(scene: Scene) {
     Effect.ShadersStore['skyGradientVertexShader'] = `
@@ -66,6 +70,23 @@ function createSkybox(scene: Scene) {
     return sky;
 }
 
+async function authenticatePlayer(): Promise<boolean> {
+    const stored = localStorage.getItem('codingGameId');
+    const codingGameId = stored || window.prompt('Enter your codingGameId:');
+    if (!codingGameId) return false;
+
+    try {
+        await login(codingGameId);
+        localStorage.setItem('codingGameId', codingGameId);
+        console.log('[game] authenticated');
+        return true;
+    } catch (err) {
+        console.error('[game] login failed:', err);
+        localStorage.removeItem('codingGameId');
+        return false;
+    }
+}
+
 export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Promise<Scene> {
     const scene = new Scene(engine);
     scene.clearColor = new Color4(0.01, 0.02, 0.06, 1);
@@ -101,33 +122,84 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
 
     createSkybox(scene);
 
-    // Connect to server and fetch map (fallback to static file)
+    // ─── Connect & authenticate ──────────────────────
+    let serverAvailable = false;
     let map;
+
     try {
         connect();
+        const authenticated = await authenticatePlayer();
+        if (!authenticated) {
+            console.warn('[game] not authenticated, using static map');
+        } else {
+            serverAvailable = true;
+        }
+
         const gridData = await requestMapGrid();
         map = serverGridToGameMap(gridData);
         console.log('[game] using server map', map.cols, 'x', map.rows);
     } catch (err) {
-        console.warn('[game] server map unavailable, using static fallback', err);
+        console.warn('[game] server unavailable, using static fallback', err);
         map = parseMap(mapRaw);
     }
 
     const { tileMeshes } = createMap(scene, engine, map);
 
-    // Listen for map updates from the server
-    onMapUpdate((_gridData) => {
-        console.log('[game] map:update received — rebuild needed');
-        // TODO: rebuild map dynamically when updates arrive
+    // ─── Listen for server events ────────────────────
+    onMapUpdate((gridData) => {
+        console.log('[game] map:update', gridData.width, 'x', gridData.height);
     });
 
-    const firstWater = map.cells.flat().find(c => c.type === TileType.Water);
-    if (firstWater) {
+    onBrokerEvent((data) => {
+        console.log('[game] broker:event', data);
+    });
+
+    // ─── Resolve boat start position ─────────────────
+    let startRow: number | null = null;
+    let startCol: number | null = null;
+    const meta = getMapMeta();
+
+    if (serverAvailable && meta) {
+        try {
+            // Try to get ship position from ship:next-level (has currentPosition)
+            const shipInfo = await getShipNextLevel();
+            const pos = serverToGrid(shipInfo.currentPosition.x, shipInfo.currentPosition.y, meta.maxY, meta.minX);
+            startRow = pos.row;
+            startCol = pos.col;
+            console.log('[game] ship at grid', startRow, startCol);
+        } catch {
+            // No ship yet — build one
+            try {
+                console.log('[game] building ship...');
+                await buildShip();
+                // After build, get position
+                const shipInfo = await getShipNextLevel();
+                const pos = serverToGrid(shipInfo.currentPosition.x, shipInfo.currentPosition.y, meta.maxY, meta.minX);
+                startRow = pos.row;
+                startCol = pos.col;
+                console.log('[game] ship built at grid', startRow, startCol);
+            } catch (err) {
+                console.warn('[game] could not build/locate ship:', err);
+            }
+        }
+    }
+
+    // Fallback: first water tile
+    if (startRow === null || startCol === null) {
+        const firstWater = map.cells.flat().find(c => c.type === TileType.Water);
+        if (firstWater) {
+            startRow = firstWater.row;
+            startCol = firstWater.col;
+        }
+    }
+
+    if (startRow !== null && startCol !== null) {
         const boat = await createBoat(scene);
         const controller = createBoatController(
             boat, tileMeshes, map,
-            firstWater.row, firstWater.col,
+            startRow, startCol,
             engine, scene,
+            meta,
         );
 
         scene.onBeforeRenderObservable.add(() => {

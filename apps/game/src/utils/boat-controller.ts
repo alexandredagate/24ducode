@@ -1,27 +1,45 @@
 import type { Engine, Mesh, Scene, TransformNode } from "babylonjs";
-import { TileType, type GameMap } from "./parse-map";
+import type { GameMap } from "./parse-map";
+import { moveShip, type Direction, type MoveResult } from "../services/socket";
+import { serverToGrid } from "../services/map-converter";
 
 const TILE_SIZE = 1.0;
-const MOVE_SPEED = 2.5;        // tiles par seconde
-const ROTATION_SPEED = 8.0;    // vitesse de rotation (lerp)
-const BOAT_Y_OFFSET = 0.55;    // hauteur au-dessus de la tile
-
-// Ajuster si le modèle ne fait pas face à la bonne direction par défaut
+const MOVE_SPEED = 2.5;
+const ROTATION_SPEED = 8.0;
+const BOAT_Y_OFFSET = 0.55;
 const MODEL_ROTATION_OFFSET = 0;
 
-// Heading par direction (rotation.y dans BabylonJS left-hand)
-// rotation.y = 0 → face +Z
-const HEADINGS: Record<string, number> = {
-  up:    Math.PI,       // face -Z
-  down:  0,             // face +Z
-  left:  -Math.PI / 2,  // face -X
-  right: Math.PI / 2,   // face +X
+const HEADINGS: Record<Direction, number> = {
+  N:  Math.PI,
+  S:  0,
+  W:  -Math.PI / 2,
+  E:  Math.PI / 2,
+  NW: Math.PI * 3 / 4,
+  NE: -Math.PI * 3 / 4,
+  SW: -Math.PI / 4,
+  SE: Math.PI / 4,
 };
+
+const KEY_TO_DIRECTION: Record<string, Direction> = {
+  ArrowUp:    'N',
+  ArrowDown:  'S',
+  ArrowLeft:  'W',
+  ArrowRight: 'E',
+};
+
+export interface MapMeta {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
 
 export interface BoatController {
   gridRow: number;
   gridCol: number;
   boat: TransformNode;
+  energy: number;
+  setPosition: (row: number, col: number) => void;
   dispose: () => void;
 }
 
@@ -33,6 +51,7 @@ export function createBoatController(
   startCol: number,
   engine: Engine,
   scene: Scene,
+  mapMeta: MapMeta | null,
 ): BoatController {
   const originX = -(map.cols - 1) / 2;
   const originZ = -(map.rows - 1) / 2;
@@ -40,19 +59,18 @@ export function createBoatController(
   function toWorldX(col: number) { return originX + col * TILE_SIZE; }
   function toWorldZ(row: number) { return originZ + row * TILE_SIZE; }
 
-  // État
   let gridRow = startRow;
   let gridCol = startCol;
   let worldX = toWorldX(gridCol);
   let worldZ = toWorldZ(gridRow);
   let targetX = worldX;
   let targetZ = worldZ;
-  let currentHeading = HEADINGS.down + MODEL_ROTATION_OFFSET;
+  let currentHeading = HEADINGS.S + MODEL_ROTATION_OFFSET;
   let targetHeading = currentHeading;
-  let isMoving = false;
+  let pendingMove = false;
+  let energy = -1;
   let time = 0;
 
-  // Position initiale
   boat.position.x = worldX;
   boat.position.z = worldZ;
   boat.rotation.y = currentHeading;
@@ -61,7 +79,7 @@ export function createBoatController(
   const keys = new Set<string>();
 
   function onKeyDown(e: KeyboardEvent) {
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+    if (e.key in KEY_TO_DIRECTION) {
       e.preventDefault();
       keys.add(e.key);
     }
@@ -73,28 +91,30 @@ export function createBoatController(
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
 
-  // ─── Movement ───────────────────────────────────────
-  function tryMove(dRow: number, dCol: number, dir: string) {
-    // Toujours tourner le bateau vers la direction pressée
-    targetHeading = HEADINGS[dir] + MODEL_ROTATION_OFFSET;
+  // ─── Server-driven movement ─────────────────────────
+  async function tryMoveServer(direction: Direction) {
+    if (pendingMove) return;
+    targetHeading = HEADINGS[direction] + MODEL_ROTATION_OFFSET;
+    pendingMove = true;
 
-    if (isMoving) return;
+    try {
+      const result: MoveResult = await moveShip(direction);
+      energy = result.energy;
 
-    const newRow = gridRow + dRow;
-    const newCol = gridCol + dCol;
+      if (mapMeta) {
+        const pos = serverToGrid(result.position.x, result.position.y, mapMeta.maxY, mapMeta.minX);
+        gridRow = pos.row;
+        gridCol = pos.col;
+      }
 
-    // Bornes de la grille
-    if (newRow < 0 || newRow >= map.rows || newCol < 0 || newCol >= map.cols) return;
-
-    // Seulement les cases eau
-    const cell = map.cells[newRow]?.[newCol];
-    if (!cell || cell.type !== TileType.Water) return;
-
-    gridRow = newRow;
-    gridCol = newCol;
-    targetX = toWorldX(newCol);
-    targetZ = toWorldZ(newRow);
-    isMoving = true;
+      targetX = toWorldX(gridCol);
+      targetZ = toWorldZ(gridRow);
+      // animation starts
+    } catch (err) {
+      console.warn('[boat] move failed:', err);
+    } finally {
+      pendingMove = false;
+    }
   }
 
   // ─── HUD ────────────────────────────────────────────
@@ -109,13 +129,15 @@ export function createBoatController(
     const dt = engine.getDeltaTime() / 1000;
     time += dt;
 
-    // Input
-    if (keys.has('ArrowUp'))    tryMove(-1,  0, 'up');
-    if (keys.has('ArrowDown'))  tryMove( 1,  0, 'down');
-    if (keys.has('ArrowLeft'))  tryMove( 0, -1, 'left');
-    if (keys.has('ArrowRight')) tryMove( 0,  1, 'right');
+    // Input → server move
+    for (const [key, dir] of Object.entries(KEY_TO_DIRECTION)) {
+      if (keys.has(key)) {
+        tryMoveServer(dir);
+        break;
+      }
+    }
 
-    // Déplacement fluide
+    // Smooth animation
     const dx = targetX - worldX;
     const dz = targetZ - worldZ;
     const dist = Math.sqrt(dx * dx + dz * dz);
@@ -125,22 +147,22 @@ export function createBoatController(
       if (step >= dist) {
         worldX = targetX;
         worldZ = targetZ;
-        isMoving = false;
+        // animation done
       } else {
         worldX += (dx / dist) * step;
         worldZ += (dz / dist) * step;
       }
     } else {
-      isMoving = false;
+      // idle
     }
 
-    // Rotation fluide (shortest path)
+    // Smooth rotation
     let headingDiff = targetHeading - currentHeading;
     while (headingDiff > Math.PI)  headingDiff -= 2 * Math.PI;
     while (headingDiff < -Math.PI) headingDiff += 2 * Math.PI;
     currentHeading += headingDiff * Math.min(1, ROTATION_SPEED * dt);
 
-    // Tile sous le bateau (pour suivre la vague)
+    // Wave following
     const tileRow = Math.round((worldZ - originZ) / TILE_SIZE);
     const tileCol = Math.round((worldX - originX) / TILE_SIZE);
     const tile = tileMeshes.get(`${tileRow}_${tileCol}`);
@@ -149,27 +171,36 @@ export function createBoatController(
     const waveRotX = tile ? tile.rotation.x : 0;
     const waveRotZ = tile ? tile.rotation.z : 0;
 
-    // Tangage léger propre au bateau
     const tangageX = Math.sin(time * 1.1) * 0.025 + Math.sin(time * 2.3 + 1.0) * 0.012;
     const tangageZ = Math.sin(time * 0.9 + 0.5) * 0.02 + Math.sin(time * 1.8 + 2.0) * 0.008;
 
-    // Appliquer
     boat.position.x = worldX;
     boat.position.z = worldZ;
     boat.position.y = waveY + BOAT_Y_OFFSET;
-
     boat.rotation.y = currentHeading;
     boat.rotation.x = waveRotX + tangageX;
     boat.rotation.z = waveRotZ + tangageZ;
 
     // HUD
-    hud.textContent = `⚓ (${gridCol}, ${gridRow})`;
+    const energyStr = energy >= 0 ? ` | energy: ${energy}` : '';
+    hud.textContent = `⚓ (${gridCol}, ${gridRow})${energyStr}`;
   });
 
   return {
     get gridRow() { return gridRow; },
     get gridCol() { return gridCol; },
+    get energy() { return energy; },
     boat,
+    setPosition(row: number, col: number) {
+      gridRow = row;
+      gridCol = col;
+      worldX = toWorldX(col);
+      worldZ = toWorldZ(row);
+      targetX = worldX;
+      targetZ = worldZ;
+      boat.position.x = worldX;
+      boat.position.z = worldZ;
+    },
     dispose() {
       scene.onBeforeRenderObservable.remove(observer);
       window.removeEventListener('keydown', onKeyDown);

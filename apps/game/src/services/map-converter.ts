@@ -5,8 +5,8 @@ import type { MapGridData } from './socket';
 /**
  * Converts server grid format to the game's GameMap.
  *
- * Server format:  '0' = sea,  '1' = land,  ' ' = unknown
- * Game format:    '0' = void, '1' = water, '2' = island
+ * Server format:  '0' = sea,  '1' = sand/coast,  '2' = island,  ' ' = unknown
+ * Game format:    '0' = void, '1' = water,        '2' = island
  */
 export function serverGridToGameMap(data: MapGridData): GameMap {
   const rows = data.grid.length;
@@ -18,8 +18,9 @@ export function serverGridToGameMap(data: MapGridData): GameMap {
       const ch = col < line.length ? line[col] : ' ';
       let type: TileType;
       switch (ch) {
-        case '0': type = TileType.Water; break;   // sea → water
-        case '1': type = TileType.Island; break;   // land → island
+        case '0': type = TileType.Water; break;    // sea → water
+        case '1': type = TileType.Island; break;   // sand/coast → island
+        case '2': type = TileType.Island; break;   // island interior → island
         default:  type = TileType.Void; break;     // unknown → void
       }
       rowCells.push({ type, row, col });
@@ -28,4 +29,15 @@ export function serverGridToGameMap(data: MapGridData): GameMap {
   });
 
   return { rows, cols, cells };
+}
+
+// ─── Coordinate conversion ───────────────────────────────
+// Server grid: row 0 = maxY (north), col 0 = minX (west)
+
+export function serverToGrid(serverX: number, serverY: number, maxY: number, minX: number) {
+  return { row: maxY - serverY, col: serverX - minX };
+}
+
+export function gridToServer(row: number, col: number, maxY: number, minX: number) {
+  return { x: col + minX, y: maxY - row };
 }
