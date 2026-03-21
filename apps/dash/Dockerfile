@@ -8,8 +8,8 @@ COPY package.json package-lock.json turbo.json ./
 COPY apps/dash/ ./apps/dash/
 COPY packages/ ./packages/
 
-# Install deps
-RUN npm ci
+# Install deps + native bindings for Alpine (musl)
+RUN npm ci && npm install --no-save lightningcss-linux-x64-musl @tailwindcss/oxide-linux-x64-musl
 
 # Build Next.js — bake the API URL at build time
 ARG NEXT_PUBLIC_API_URL
