@@ -77,28 +77,63 @@ export function PlayerCard({ player, storage, onUpgradeStorage }: PlayerCardProp
       </div>
 
       {/* Upgrade entrepôt */}
-      {storage && (
-        <div className="rounded-xl bg-zinc-800 border border-zinc-700 p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
+      {storage && (() => {
+        const resourceMap = new Map(player.resources.map((r) => [r.type, r.quantity]));
+        const costEntries = Object.entries(storage.costResources) as [string, number][];
+        const canUpgrade = costEntries.every(([res, cost]) => (resourceMap.get(res) ?? 0) >= cost);
+
+        return (
+          <div className="rounded-xl bg-zinc-800 border border-zinc-700 overflow-hidden">
+            <div className="px-4 py-3 border-b border-zinc-700">
               <div className="text-sm font-semibold text-zinc-200">Entrepôt prochain niveau : {storage.name}</div>
-              <div className="text-xs text-zinc-500 mt-1">
-                Coût :{" "}
-                {Object.entries(storage.costResources)
-                  .map(([k, v]) => `${v} ${k}`)
-                  .join(" · ")}
-              </div>
             </div>
-            <button
-              type="button"
-              onClick={onUpgradeStorage}
-              className="w-full sm:w-auto px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium transition-colors"
-            >
-              Améliorer
-            </button>
+            <div className="p-4 space-y-3">
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                {costEntries.map(([resource, cost]) => {
+                  const have = resourceMap.get(resource) ?? 0;
+                  const missing = Math.max(0, cost - have);
+                  const enough = have >= cost;
+
+                  return (
+                    <div
+                      key={resource}
+                      className={`rounded-lg border px-2 sm:px-3 py-2 text-center ${
+                        enough
+                          ? "bg-emerald-950 border-emerald-800"
+                          : "bg-red-950 border-red-800"
+                      }`}
+                    >
+                      <div className={`text-xs font-semibold ${RESOURCE_COLORS[resource] ?? "text-zinc-400"}`}>
+                        {resource}
+                      </div>
+                      <div className="text-sm font-bold text-white mt-0.5">
+                        {have.toLocaleString()} / {cost.toLocaleString()}
+                      </div>
+                      {!enough && (
+                        <div className="text-xs text-red-400 mt-0.5">-{missing.toLocaleString()}</div>
+                      )}
+                      {enough && (
+                        <div className="text-xs text-emerald-400 mt-0.5">OK</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {!canUpgrade && (
+                <div className="text-xs text-red-400">Ressources insuffisantes pour cette amélioration</div>
+              )}
+              <button
+                type="button"
+                onClick={onUpgradeStorage}
+                disabled={!canUpgrade}
+                className="w-full sm:w-auto px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {canUpgrade ? "Améliorer" : "Ressources insuffisantes"}
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Îles découvertes */}
       <div className="rounded-xl bg-zinc-800 border border-zinc-700 p-4">

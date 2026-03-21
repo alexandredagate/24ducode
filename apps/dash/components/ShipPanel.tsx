@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Direction, ShipNextLevel } from "../hooks/useSocket";
+import type { Direction, ShipNextLevel, PlayerDetails } from "../hooks/useSocket";
 
 interface ShipPanelProps {
   shipNextLevel: ShipNextLevel | null;
@@ -9,6 +9,7 @@ interface ShipPanelProps {
   shipLevelError: string | null;
   currentPosition: { x: number; y: number; type: string; zone: number } | null;
   availableMove: number | null;
+  playerResources: PlayerDetails["resources"] | null;
   onMove: (direction: Direction) => Promise<unknown>;
   onBuild: () => Promise<unknown>;
   onUpgrade: () => Promise<unknown>;
@@ -28,12 +29,19 @@ const DIR_LABELS: Record<Direction, string> = {
   SW: "↙", S: "↓", SE: "↘",
 };
 
+const RESOURCE_COLORS: Record<string, string> = {
+  FERONIUM: "text-cyan-400",
+  BOISIUM: "text-emerald-400",
+  CHARBONIUM: "text-orange-400",
+};
+
 export function ShipPanel({
   shipNextLevel,
   shipExists,
   shipLevelError,
   currentPosition,
   availableMove,
+  playerResources,
   onMove,
   onBuild,
   onUpgrade,
@@ -89,6 +97,13 @@ export function ShipPanel({
   }
 
   const currentLevelId = shipNextLevel?.level ? shipNextLevel.level.id - 1 : null;
+
+  // Calcul des ressources manquantes pour l'upgrade
+  const resourceMap = new Map(playerResources?.map((r) => [r.type, r.quantity]) ?? []);
+  const costEntries = shipNextLevel?.costResources
+    ? (Object.entries(shipNextLevel.costResources) as [string, number][])
+    : [];
+  const canUpgrade = costEntries.length > 0 && costEntries.every(([res, cost]) => (resourceMap.get(res) ?? 0) >= cost);
 
   return (
     <div className="space-y-4">
@@ -214,18 +229,48 @@ export function ShipPanel({
               </div>
             </div>
 
-            {/* Coût */}
-            {shipNextLevel.costResources && (
+            {/* Coût et ressources actuelles */}
+            {costEntries.length > 0 && (
               <div>
-                <div className="text-xs text-zinc-500 mb-2">Coût de l'amélioration</div>
+                <div className="text-xs text-zinc-500 mb-2">Ressources requises</div>
                 <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-                  {Object.entries(shipNextLevel.costResources).map(([resource, qty]) => (
-                    <div key={resource} className="rounded-lg bg-zinc-900 px-2 sm:px-3 py-2 text-center">
-                      <div className="text-xs text-zinc-500">{resource}</div>
-                      <div className="text-sm font-bold text-white mt-0.5">{qty.toLocaleString()}</div>
-                    </div>
-                  ))}
+                  {costEntries.map(([resource, cost]) => {
+                    const have = resourceMap.get(resource) ?? 0;
+                    const missing = Math.max(0, cost - have);
+                    const enough = have >= cost;
+
+                    return (
+                      <div
+                        key={resource}
+                        className={`rounded-lg border px-2 sm:px-3 py-2 text-center ${
+                          enough
+                            ? "bg-emerald-950 border-emerald-800"
+                            : "bg-red-950 border-red-800"
+                        }`}
+                      >
+                        <div className={`text-xs font-semibold ${RESOURCE_COLORS[resource] ?? "text-zinc-400"}`}>
+                          {resource}
+                        </div>
+                        <div className="text-sm font-bold text-white mt-0.5">
+                          {have.toLocaleString()} / {cost.toLocaleString()}
+                        </div>
+                        {!enough && (
+                          <div className="text-xs text-red-400 mt-0.5">
+                            -{missing.toLocaleString()}
+                          </div>
+                        )}
+                        {enough && (
+                          <div className="text-xs text-emerald-400 mt-0.5">OK</div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+                {!canUpgrade && (
+                  <div className="mt-2 text-xs text-red-400">
+                    Ressources insuffisantes pour cette amélioration
+                  </div>
+                )}
               </div>
             )}
 
@@ -233,10 +278,10 @@ export function ShipPanel({
             <button
               type="button"
               onClick={handleUpgrade}
-              disabled={upgrading}
+              disabled={upgrading || !canUpgrade}
               className="w-full py-2.5 rounded-lg bg-white text-zinc-950 font-semibold text-sm hover:bg-zinc-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {upgrading ? "Amélioration en cours..." : `Améliorer → ${shipNextLevel.level!.name}`}
+              {upgrading ? "Amélioration en cours..." : canUpgrade ? `Améliorer → ${shipNextLevel.level!.name}` : "Ressources insuffisantes"}
             </button>
 
             {upgradeResult && (
@@ -257,10 +302,14 @@ export function ShipPanel({
             {shipLevelError}
           </div>
         </div>
-      ) : (
+      ) : shipNextLevel && !shipNextLevel.level ? (
         <div className="rounded-xl bg-zinc-800 border border-zinc-700 p-4 text-center">
           <div className="text-yellow-400 text-lg mb-1">★</div>
           <p className="text-zinc-400 text-sm">Niveau maximum atteint</p>
+        </div>
+      ) : (
+        <div className="rounded-xl bg-zinc-800 border border-zinc-700 p-4 text-center">
+          <p className="text-zinc-500 text-sm">Chargement des données du prochain niveau...</p>
         </div>
       )}
     </div>

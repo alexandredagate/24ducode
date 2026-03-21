@@ -18,8 +18,22 @@ export async function handleAuth(
 ): Promise<ServerResponse> {
   switch (msg.command) {
     case "auth:login": {
-      const { codingGameId } = (msg.payload ?? {}) as AuthLoginPayload;
-      if (!codingGameId) throw new Error("codingGameId is required");
+      const payload = (msg.payload ?? {}) as AuthLoginPayload & { pin?: string };
+
+      let codingGameId: string;
+
+      if (payload.pin) {
+        // Auth par PIN : on résout le codingGameId depuis l'env
+        const expectedPin = process.env.PIN_CODE;
+        const envCodingGameId = process.env.CODING_GAME_ID;
+        if (!expectedPin || !envCodingGameId) throw new Error("PIN auth not configured on server");
+        if (payload.pin !== expectedPin) throw new Error("Code PIN invalide");
+        codingGameId = envCodingGameId;
+      } else {
+        // Auth classique par codingGameId (fallback)
+        codingGameId = payload.codingGameId ?? "";
+        if (!codingGameId) throw new Error("codingGameId or pin is required");
+      }
 
       // Validate codingGameId against the game API
       const player = await getResources(codingGameId);

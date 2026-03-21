@@ -120,6 +120,7 @@ export default function Home() {
     shipLevelError,
     currentPosition,
     availableMove,
+    playerResources: playerDetails?.resources ?? null,
     onMove: handleMove,
     onBuild: handleShipBuild,
     onUpgrade: handleShipUpgrade,

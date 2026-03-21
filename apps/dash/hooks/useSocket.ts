@@ -181,11 +181,30 @@ export function useSocket(): UseSocketReturn {
 
   const refreshShipNextLevel = useCallback(async () => {
     try {
-      const data = await emit<ShipNextLevel>("ship:next-level");
+      const raw = await emit<Record<string, unknown>>("ship:next-level");
+      console.log("[ship:next-level] response:", JSON.stringify(raw));
+
+      // L'API peut retourner soit { level: {...}, costResources, ... }
+      // soit le level directement à la racine { id, name, ..., costResources }
+      let data: ShipNextLevel;
+      if (raw.level && typeof raw.level === "object") {
+        data = raw as unknown as ShipNextLevel;
+      } else if (raw.id && raw.name) {
+        // Format plat : les champs du level sont à la racine
+        const { costResources, availableMove, currentPosition, ...levelFields } = raw;
+        data = {
+          level: levelFields as unknown as ShipNextLevel["level"],
+          costResources: costResources as ShipNextLevel["costResources"],
+          availableMove: availableMove as number | undefined,
+          currentPosition: currentPosition as ShipNextLevel["currentPosition"],
+        };
+      } else {
+        data = raw as unknown as ShipNextLevel;
+      }
+
       setShipNextLevelRef.current(data);
       setShipExistsRef.current(true);
       setShipLevelErrorRef.current(null);
-      // Mettre à jour position et énergie depuis ship:next-level
       if (data.currentPosition) {
         setCurrentPositionRef.current(data.currentPosition);
       }
@@ -194,8 +213,9 @@ export function useSocket(): UseSocketReturn {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erreur inconnue";
+      console.warn("[ship:next-level] error:", msg);
       // "already pending" est ignoré silencieusement (déduplication normale)
-      if (!msg.includes("already pending") && !msg.includes("Timeout")) {
+      if (!msg.includes("already pending")) {
         setShipExistsRef.current(true);
         setShipLevelErrorRef.current(msg);
       }
@@ -230,14 +250,27 @@ export function useSocket(): UseSocketReturn {
     } catch {}
   }, [emit]);
 
+  const refreshShipLocation = useCallback(async () => {
+    try {
+      const data = await emit<{ position: { id: string; x: number; y: number; type: string; zone: number }; energy: number }>("ship:location");
+      if (data.position) {
+        setCurrentPositionRef.current(data.position);
+      }
+      if (data.energy != null) {
+        setAvailableMoveRef.current(data.energy);
+      }
+    } catch {}
+  }, [emit]);
+
   // Sequential pour éviter les conflits de commandes simultanées
   const refreshAll = useCallback(async () => {
     await refreshPlayerDetails();
     await refreshShipNextLevel();
+    await refreshShipLocation();
     await refreshTaxes();
     await refreshMarketOffers();
     await refreshStorageInfo();
-  }, [refreshPlayerDetails, refreshShipNextLevel, refreshTaxes, refreshMarketOffers, refreshStorageInfo]);
+  }, [refreshPlayerDetails, refreshShipNextLevel, refreshShipLocation, refreshTaxes, refreshMarketOffers, refreshStorageInfo]);
 
   // Ref stable pour refreshShipNextLevel utilisée dans useEffect
   const refreshShipNextLevelRef = useRef(refreshShipNextLevel);
@@ -279,8 +312,15 @@ export function useSocket(): UseSocketReturn {
     });
 
     // broker:event → AMQP events from the game server
-    socket.on("broker:event", (msg: { type?: string; data?: unknown }) => {
-      pushEvent(msg.type ?? "BROKER", msg.data ?? msg);
+    socket.on("broker:event", (msg: unknown) => {
+      console.log("[broker:event] raw:", msg);
+      if (msg != null && typeof msg === "object" && !Array.isArray(msg)) {
+        const obj = msg as Record<string, unknown>;
+        const type = typeof obj.type === "string" ? obj.type : "BROKER";
+        pushEvent(type, obj.data ?? obj);
+      } else {
+        pushEvent("BROKER", msg);
+      }
     });
 
     // Auto-refresh du token si déjà connecté
@@ -318,13 +358,21 @@ export function useSocket(): UseSocketReturn {
     }
   }, [authenticated, refreshAll]);
 
-  const login = useCallback(async (codingGameId: string) => {
+  // Polling position du bateau toutes les 5s
+  useEffect(() => {
+    if (authenticated && shipExists) {
+      const interval = setInterval(refreshShipLocation, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [authenticated, shipExists, refreshShipLocation]);
+
+  const login = useCallback(async (pin: string) => {
     const socket = socketRef.current;
     if (!socket) throw new Error("Socket non initialisé");
     const data = await emitRaw<{ accessToken: string; refreshToken: string }>(
       socket,
       "auth:login",
-      { codingGameId }
+      { pin }
     );
     localStorage.setItem("accessToken", data.accessToken);
     localStorage.setItem("refreshToken", data.refreshToken);

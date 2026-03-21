@@ -2,7 +2,6 @@ import amqp from "amqplib";
 import type { Server as SocketServer } from "socket.io";
 
 export async function connectBroker(io: SocketServer): Promise<void> {
-  console.log("[broker] disabled — skipping connection");
 
   const url = "amqps://ekonsilio:410c8b64-913f-46eb-8bc0-7a197c4f506d@b-a5095b9b-3c4d-4fe7-8df1-8031e8808618.mq.eu-west-3.on.aws:5671/";
 
@@ -23,8 +22,15 @@ export async function connectBroker(io: SocketServer): Promise<void> {
         parsed = msg.content.toString();
       }
 
-      console.log("[broker] event received:", JSON.stringify(parsed));
-      io.emit("broker:event", parsed);
+      // Normaliser en { type, data } quel que soit le format AMQP
+      const normalized =
+        parsed != null && typeof parsed === "object" && !Array.isArray(parsed)
+          ? parsed as Record<string, unknown>
+          : { raw: parsed };
+
+      const type = typeof normalized.type === "string" ? normalized.type : "BROKER";
+      console.log(`[broker] event received [${type}]:`, JSON.stringify(normalized));
+      io.emit("broker:event", { type, data: normalized });
       channel.ack(msg);
     });
 
