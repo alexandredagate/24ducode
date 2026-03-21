@@ -19,7 +19,9 @@ apps/agent/
     ├── __init__.py
     ├── main.py         ← app FastAPI, lifespan, routes
     ├── config.py       ← settings via pydantic-settings + .env
-    └── db.py           ← client Motor abstrait
+    ├── db.py           ← client Motor abstrait
+    ├── ws_client.py    ← client WebSocket sortant (reconnexion auto)
+    └── agent.py        ← boucle de décision, dispatch calculs lourds
 ```
 
 ---
@@ -111,6 +113,8 @@ Gérées par le `docker-compose.yml` en production. En local, créer un fichier 
 MONGO_URI=mongodb://localhost:27017
 MONGO_DB=game3026
 API_TIMEOUT=10.0
+WS_SERVER_URL=ws://localhost:9000/ws
+WS_RECONNECT_DELAY=3.0
 ```
 
 ---
@@ -128,5 +132,4 @@ uv run pytest
 | Méthode | Route | Description |
 |---|---|---|
 | `GET` | `/` | Sanity check |
-| `GET` | `/health` | Ping MongoDB |
-| `WS` | `/ws` | WebSocket echo |
+| `GET` | `/health` | Ping MongoDB + état connexion WS |
