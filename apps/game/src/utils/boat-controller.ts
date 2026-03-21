@@ -1,7 +1,7 @@
 import type { Engine, Mesh, Scene, TransformNode } from "babylonjs";
 import type { GameMap } from "./parse-map";
-import { moveShip, type Direction, type MoveResult } from "../services/socket";
-import { serverToGrid } from "../services/map-converter";
+import { moveShip, type Direction, type ShipMoveResponse, type MapMeta } from "../services/socket";
+import { serverToGrid, gridToServer } from "../services/map-converter";
 
 const TILE_SIZE = 1.0;
 const MOVE_SPEED = 2.5;
@@ -27,34 +27,31 @@ const KEY_TO_DIRECTION: Record<string, Direction> = {
   ArrowRight: 'E',
 };
 
-export interface MapMeta {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-}
-
 export interface BoatController {
   gridRow: number;
   gridCol: number;
   boat: TransformNode;
   energy: number;
-  setPosition: (row: number, col: number) => void;
+  setPosition: (row: number, col: number, animate?: boolean) => void;
+  updateMap: (newMap: GameMap, newTileMeshes: Map<string, Mesh>, newMeta: MapMeta | null) => void;
   dispose: () => void;
 }
 
 export function createBoatController(
   boat: TransformNode,
-  tileMeshes: Map<string, Mesh>,
-  map: GameMap,
+  initialTileMeshes: Map<string, Mesh>,
+  initialMap: GameMap,
   startRow: number,
   startCol: number,
   engine: Engine,
   scene: Scene,
-  mapMeta: MapMeta | null,
+  initialMeta: MapMeta | null,
 ): BoatController {
-  const originX = -(map.cols - 1) / 2;
-  const originZ = -(map.rows - 1) / 2;
+  // Mutable references — updated by updateMap()
+  let currentTileMeshes = initialTileMeshes;
+  let mapMeta = initialMeta;
+  let originX = -(initialMap.cols - 1) / 2;
+  let originZ = -(initialMap.rows - 1) / 2;
 
   function toWorldX(col: number) { return originX + col * TILE_SIZE; }
   function toWorldZ(row: number) { return originZ + row * TILE_SIZE; }
@@ -98,18 +95,17 @@ export function createBoatController(
     pendingMove = true;
 
     try {
-      const result: MoveResult = await moveShip(direction);
+      const result: ShipMoveResponse = await moveShip(direction);
       energy = result.energy;
 
       if (mapMeta) {
-        const pos = serverToGrid(result.position.x, result.position.y, mapMeta.maxY, mapMeta.minX);
+        const pos = serverToGrid(result.position.x, result.position.y, mapMeta);
         gridRow = pos.row;
         gridCol = pos.col;
       }
 
       targetX = toWorldX(gridCol);
       targetZ = toWorldZ(gridRow);
-      // animation starts
     } catch (err) {
       console.warn('[boat] move failed:', err);
     } finally {
@@ -137,7 +133,7 @@ export function createBoatController(
       }
     }
 
-    // Smooth animation
+    // Smooth position animation
     const dx = targetX - worldX;
     const dz = targetZ - worldZ;
     const dist = Math.sqrt(dx * dx + dz * dz);
@@ -147,13 +143,10 @@ export function createBoatController(
       if (step >= dist) {
         worldX = targetX;
         worldZ = targetZ;
-        // animation done
       } else {
         worldX += (dx / dist) * step;
         worldZ += (dz / dist) * step;
       }
-    } else {
-      // idle
     }
 
     // Smooth rotation
@@ -165,7 +158,7 @@ export function createBoatController(
     // Wave following
     const tileRow = Math.round((worldZ - originZ) / TILE_SIZE);
     const tileCol = Math.round((worldX - originX) / TILE_SIZE);
-    const tile = tileMeshes.get(`${tileRow}_${tileCol}`);
+    const tile = currentTileMeshes.get(`${tileRow}_${tileCol}`);
 
     const waveY    = tile ? tile.position.y : 0;
     const waveRotX = tile ? tile.rotation.x : 0;
@@ -181,9 +174,14 @@ export function createBoatController(
     boat.rotation.x = waveRotX + tangageX;
     boat.rotation.z = waveRotZ + tangageZ;
 
-    // HUD
+    // HUD — show server coordinates (x, y)
     const energyStr = energy >= 0 ? ` | energy: ${energy}` : '';
-    hud.textContent = `⚓ (${gridCol}, ${gridRow})${energyStr}`;
+    if (mapMeta) {
+      const server = gridToServer(gridRow, gridCol, mapMeta);
+      hud.textContent = `x:${server.x} y:${server.y}${energyStr}`;
+    } else {
+      hud.textContent = `(${gridCol}, ${gridRow})${energyStr}`;
+    }
   });
 
   return {
@@ -191,16 +189,56 @@ export function createBoatController(
     get gridCol() { return gridCol; },
     get energy() { return energy; },
     boat,
-    setPosition(row: number, col: number) {
+
+    setPosition(row: number, col: number, animate = true) {
+      const newTargetX = toWorldX(col);
+      const newTargetZ = toWorldZ(row);
+
+      if (animate) {
+        const ddx = newTargetX - worldX;
+        const ddz = newTargetZ - worldZ;
+        if (Math.abs(ddx) > 0.001 || Math.abs(ddz) > 0.001) {
+          targetHeading = Math.atan2(ddx, ddz) + MODEL_ROTATION_OFFSET;
+        }
+      }
+
       gridRow = row;
       gridCol = col;
-      worldX = toWorldX(col);
-      worldZ = toWorldZ(row);
+      targetX = newTargetX;
+      targetZ = newTargetZ;
+
+      if (!animate) {
+        worldX = targetX;
+        worldZ = targetZ;
+        boat.position.x = worldX;
+        boat.position.z = worldZ;
+      }
+    },
+
+    updateMap(newMap: GameMap, newTileMeshes: Map<string, Mesh>, newMeta: MapMeta | null) {
+      currentTileMeshes = newTileMeshes;
+      mapMeta = newMeta;
+      originX = -(newMap.cols - 1) / 2;
+      originZ = -(newMap.rows - 1) / 2;
+
+      // Recalculate grid position from server coords, then snap world position
+      if (newMeta) {
+        const server = gridToServer(gridRow, gridCol, mapMeta!);
+        // mapMeta may have shifted — recalculate grid in new coordinate space
+        const pos = serverToGrid(server.x, server.y, newMeta);
+        gridRow = pos.row;
+        gridCol = pos.col;
+      }
+
+      // Snap to new world position (map origin may have shifted)
+      worldX = toWorldX(gridCol);
+      worldZ = toWorldZ(gridRow);
       targetX = worldX;
       targetZ = worldZ;
       boat.position.x = worldX;
       boat.position.z = worldZ;
     },
+
     dispose() {
       scene.onBeforeRenderObservable.remove(observer);
       window.removeEventListener('keydown', onKeyDown);

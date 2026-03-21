@@ -1,29 +1,32 @@
-import type { GameMap, TileCell } from '../utils/parse-map';
-import { TileType } from '../utils/parse-map';
-import type { MapGridData } from './socket';
+import type { GameMap, TileCell, TileType } from '../utils/parse-map';
+import type { MapGridData, MapMeta } from './socket';
 
 /**
- * Converts server grid format to the game's GameMap.
+ * Converts the server grid to a GameMap.
  *
- * Server format:  '0' = sea,  '1' = sand/coast,  '2' = island,  ' ' = unknown
- * Game format:    '0' = void, '1' = water,        '2' = island
+ * Server grid (map-store.ts):
+ *   grid[0]        = y = minY (south)
+ *   grid[height-1] = y = maxY (north)
+ *   "0" = unknown, "1" = SEA, "2" = SAND
+ *
+ * Game rendering:
+ *   row 0 → z = originZ (most negative Z = north on screen)
+ *   So row 0 must be maxY (north).
+ *
+ * We reverse the grid rows so the visual orientation matches.
  */
 export function serverGridToGameMap(data: MapGridData): GameMap {
-  const rows = data.grid.length;
   const cols = data.width;
 
-  const cells: TileCell[][] = data.grid.map((line, row) => {
+  // Reverse: server grid[0]=south → game row[0]=north
+  const reversedGrid = [...data.grid].reverse();
+  const rows = reversedGrid.length;
+
+  const cells: TileCell[][] = reversedGrid.map((line, row) => {
     const rowCells: TileCell[] = [];
     for (let col = 0; col < cols; col++) {
-      const ch = col < line.length ? line[col] : ' ';
-      let type: TileType;
-      switch (ch) {
-        case '0': type = TileType.Water; break;    // sea → water
-        case '1': type = TileType.Island; break;   // sand/coast → island
-        case '2': type = TileType.Island; break;   // island interior → island
-        default:  type = TileType.Void; break;     // unknown → void
-      }
-      rowCells.push({ type, row, col });
+      const ch = col < line.length ? line[col] : '0';
+      rowCells.push({ type: ch as TileType, row, col });
     }
     return rowCells;
   });
@@ -32,12 +35,13 @@ export function serverGridToGameMap(data: MapGridData): GameMap {
 }
 
 // ─── Coordinate conversion ───────────────────────────────
-// Server grid: row 0 = maxY (north), col 0 = minX (west)
+// Game row 0 = maxY (north), row increases southward
+// row = maxY - y,  col = x - minX
 
-export function serverToGrid(serverX: number, serverY: number, maxY: number, minX: number) {
-  return { row: maxY - serverY, col: serverX - minX };
+export function serverToGrid(x: number, y: number, meta: MapMeta) {
+  return { row: meta.maxY - y, col: x - meta.minX };
 }
 
-export function gridToServer(row: number, col: number, maxY: number, minX: number) {
-  return { x: col + minX, y: maxY - row };
+export function gridToServer(row: number, col: number, meta: MapMeta) {
+  return { x: col + meta.minX, y: meta.maxY - row };
 }

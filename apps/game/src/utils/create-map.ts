@@ -10,6 +10,7 @@ const GAP = 0;
 export interface MapResult {
   tileMeshes: Map<string, Mesh>;
   map: GameMap;
+  dispose: () => void;
 }
 
 export function createMap(scene: Scene, engine: Engine, map: GameMap): MapResult {
@@ -40,5 +41,34 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap): MapResult
 
   createFogOfWar(scene, engine, map);
 
-  return { tileMeshes, map };
+  // Collect all meshes/particles created for this map so we can dispose them
+  const meshNames = new Set<string>();
+  for (const mesh of scene.meshes) {
+    meshNames.add(mesh.name);
+  }
+  const particleSystems = [...scene.particleSystems];
+
+  function dispose() {
+    // Dispose water tile meshes
+    for (const mesh of tileMeshes.values()) {
+      mesh.dispose();
+    }
+    tileMeshes.clear();
+
+    // Dispose island meshes
+    const toDispose = scene.meshes.filter(m => m.name.startsWith('island_ground'));
+    for (const m of toDispose) m.dispose();
+
+    // Dispose fog plane
+    const fogPlane = scene.getMeshByName('fogPlane');
+    if (fogPlane) fogPlane.dispose();
+
+    // Dispose all particle systems (fog)
+    for (const ps of particleSystems) {
+      ps.stop();
+      ps.dispose();
+    }
+  }
+
+  return { tileMeshes, map, dispose };
 }

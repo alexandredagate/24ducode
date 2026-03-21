@@ -5,9 +5,9 @@ import { createBoat } from "../utils/boat";
 import { createBoatController } from "../utils/boat-controller";
 import mapRaw from "../assets/map.txt?raw";
 import {
-    connect, requestMapGrid, onMapUpdate, onBrokerEvent,
-    login, buildShip, getShipNextLevel,
-    getMapMeta,
+    connect, requestMapGrid, onMapUpdate, onBrokerEvent, onShipPosition,
+    login, buildShip, getShipLocation, getShipNextLevel,
+    getMapMeta, type MapMeta,
 } from "../services/socket";
 import { serverGridToGameMap, serverToGrid } from "../services/map-converter";
 
@@ -32,13 +32,11 @@ function createSkybox(scene: Scene) {
         }
 
         void main() {
-            // Normalise Y entre 0 (bas) et 1 (haut)
             float t = (normalize(vPosition).y + 1.0) * 0.5;
 
-            // Palette style Minecraft — bleu clair en haut, horizon lumineux, sombre en bas
-            vec3 nadir    = vec3(0.04, 0.06, 0.12);   // 0.0 — sous la scène
-            vec3 horizon  = vec3(0.55, 0.75, 0.92);   // 0.5 — horizon clair
-            vec3 zenith   = vec3(0.25, 0.47, 0.85);   // 1.0 — ciel bleu vif
+            vec3 nadir    = vec3(0.04, 0.06, 0.12);
+            vec3 horizon  = vec3(0.55, 0.75, 0.92);
+            vec3 zenith   = vec3(0.25, 0.47, 0.85);
 
             vec3 color;
             if (t < 0.45) {
@@ -137,19 +135,16 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
 
         const gridData = await requestMapGrid();
         map = serverGridToGameMap(gridData);
-        console.log('[game] using server map', map.cols, 'x', map.rows);
+        console.log('[game] server map loaded:', map.cols, 'x', map.rows);
     } catch (err) {
         console.warn('[game] server unavailable, using static fallback', err);
         map = parseMap(mapRaw);
     }
 
-    const { tileMeshes } = createMap(scene, engine, map);
+    let currentMapResult = createMap(scene, engine, map);
+    let currentMeta: MapMeta | null = getMapMeta();
 
-    // ─── Listen for server events ────────────────────
-    onMapUpdate((gridData) => {
-        console.log('[game] map:update', gridData.width, 'x', gridData.height);
-    });
-
+    // ─── Listen for server broadcasts ────────────────
     onBrokerEvent((data) => {
         console.log('[game] broker:event', data);
     });
@@ -157,50 +152,84 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
     // ─── Resolve boat start position ─────────────────
     let startRow: number | null = null;
     let startCol: number | null = null;
-    const meta = getMapMeta();
 
-    if (serverAvailable && meta) {
+    if (serverAvailable && currentMeta) {
+        // Strategy 1: ship:location (cached position from MongoDB — fast, no external API call)
         try {
-            // Try to get ship position from ship:next-level (has currentPosition)
-            const shipInfo = await getShipNextLevel();
-            const pos = serverToGrid(shipInfo.currentPosition.x, shipInfo.currentPosition.y, meta.maxY, meta.minX);
+            const location = await getShipLocation();
+            const pos = serverToGrid(location.position.x, location.position.y, currentMeta);
             startRow = pos.row;
             startCol = pos.col;
-            console.log('[game] ship at grid', startRow, startCol);
+            console.log('[game] ship position from ship:location:', startRow, startCol);
         } catch {
-            // No ship yet — build one
+            console.log('[game] no cached ship:location');
+        }
+
+        // Strategy 2: ship:next-level (calls external game API — has currentPosition)
+        if (startRow === null) {
+            try {
+                const ship = await getShipNextLevel();
+                const pos = serverToGrid(ship.currentPosition.x, ship.currentPosition.y, currentMeta);
+                startRow = pos.row;
+                startCol = pos.col;
+                console.log('[game] ship position from ship:next-level:', startRow, startCol);
+            } catch {
+                console.log('[game] no ship exists yet');
+            }
+        }
+
+        // Strategy 3: build a new ship
+        if (startRow === null) {
             try {
                 console.log('[game] building ship...');
                 await buildShip();
-                // After build, get position
-                const shipInfo = await getShipNextLevel();
-                const pos = serverToGrid(shipInfo.currentPosition.x, shipInfo.currentPosition.y, meta.maxY, meta.minX);
+                const ship = await getShipNextLevel();
+                const pos = serverToGrid(ship.currentPosition.x, ship.currentPosition.y, currentMeta);
                 startRow = pos.row;
                 startCol = pos.col;
-                console.log('[game] ship built at grid', startRow, startCol);
+                console.log('[game] ship built, position:', startRow, startCol);
             } catch (err) {
-                console.warn('[game] could not build/locate ship:', err);
+                console.warn('[game] could not build ship:', err);
             }
         }
     }
 
-    // Fallback: first water tile
+    // Fallback: first water tile in the map
     if (startRow === null || startCol === null) {
         const firstWater = map.cells.flat().find(c => c.type === TileType.Water);
         if (firstWater) {
             startRow = firstWater.row;
             startCol = firstWater.col;
+            console.log('[game] fallback: first water tile at', startRow, startCol);
         }
     }
 
     if (startRow !== null && startCol !== null) {
         const boat = await createBoat(scene);
         const controller = createBoatController(
-            boat, tileMeshes, map,
+            boat, currentMapResult.tileMeshes, map,
             startRow, startCol,
             engine, scene,
-            meta,
+            currentMeta,
         );
+
+        // Rebuild map when server broadcasts map:update
+        onMapUpdate((gridData) => {
+            console.log('[game] map:update — rebuilding', gridData.width, 'x', gridData.height);
+            currentMapResult.dispose();
+            const newMap = serverGridToGameMap(gridData);
+            currentMapResult = createMap(scene, engine, newMap);
+            currentMeta = { minX: gridData.minX, maxX: gridData.maxX, minY: gridData.minY, maxY: gridData.maxY };
+            controller.updateMap(newMap, currentMapResult.tileMeshes, currentMeta);
+        });
+
+        // Move boat when server broadcasts ship:position
+        onShipPosition((data) => {
+            if (currentMeta) {
+                const pos = serverToGrid(data.position.x, data.position.y, currentMeta);
+                controller.setPosition(pos.row, pos.col);
+            }
+        });
 
         scene.onBeforeRenderObservable.add(() => {
             const pos = controller.boat.position;
