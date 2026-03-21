@@ -2,7 +2,6 @@ export const TileType = {
   Void: '0',
   Water: '1',
   Island: '2',
-  /** Île vue mais pas encore validée (DISCOVERED) */
   IslandDiscovered: '3',
 } as const;
 

@@ -1,4 +1,4 @@
-import { Color3, FresnelParameters, StandardMaterial, type Engine, type Mesh, type Scene } from "babylonjs";
+import { Color3, FresnelParameters, Mesh, MeshBuilder, StandardMaterial, TransformNode, type Engine, type Scene } from "babylonjs";
 import { type GameMap, TileType, type TileCell } from "./parse-map";
 import { createWaterTiles, addWaterTile, createRoundedBoxMesh } from "./water-tile";
 import { buildIslandMeshes } from "../map/IslandMeshBuilder";
@@ -44,6 +44,97 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap): MapResult
   );
 
   const islandMeshes: Mesh[] = [...buildIslandMeshes(numericGrid, TILE_SIZE, GAP, scene)];
+
+  // ─── Discovered island markers (❗) ───────────────────
+  const MARKER_Y = 1.8;
+  const MARKER_BOB_SPEED = 1.5;
+  const MARKER_BOB_AMP = 0.15;
+  const MARKER_ROTATE_SPEED = 1.2;
+
+  // Shared materials
+  const markerRedMat = new StandardMaterial('markerRedMat', scene);
+  markerRedMat.diffuseColor = new Color3(0.9, 0.15, 0.1);
+  markerRedMat.emissiveColor = new Color3(0.5, 0.08, 0.05);
+  markerRedMat.specularColor = new Color3(0.6, 0.2, 0.2);
+  markerRedMat.specularPower = 32;
+
+  // Master meshes (hidden, cloned per marker)
+  const barMaster = MeshBuilder.CreateCylinder('markerBarMaster', {
+    height: 0.4, diameterTop: 0.08, diameterBottom: 0.1, tessellation: 8,
+  }, scene);
+  barMaster.isVisible = false;
+
+  const dotMaster = MeshBuilder.CreateSphere('markerDotMaster', {
+    diameter: 0.12, segments: 8,
+  }, scene);
+  dotMaster.isVisible = false;
+
+  interface DiscoveredMarker { root: TransformNode; phase: number; baseY: number; }
+  const markers: DiscoveredMarker[] = [];
+  const markerKeys = new Set<string>();
+
+  function addMarker(row: number, col: number) {
+    const key = `${row}_${col}`;
+    if (markerKeys.has(key)) return;
+    markerKeys.add(key);
+
+    const x = getOriginX() + col * TILE_SIZE;
+    const z = getOriginZ() + row * TILE_SIZE;
+
+    const root = new TransformNode(`marker_${key}`, scene);
+    root.position.set(x, MARKER_Y, z);
+
+    const bar = barMaster.clone(`markerBar_${key}`);
+    bar.isVisible = true;
+    bar.material = markerRedMat;
+    bar.parent = root;
+    bar.position.y = 0.12;
+
+    const dot = dotMaster.clone(`markerDot_${key}`);
+    dot.isVisible = true;
+    dot.material = markerRedMat;
+    dot.parent = root;
+    dot.position.y = -0.16;
+
+    markers.push({
+      root,
+      baseY: MARKER_Y,
+      phase: (row * 7.3 + col * 13.1) % (Math.PI * 2),
+    });
+  }
+
+  function rebuildMarkers() {
+    for (const m of markers) m.root.dispose();
+    markers.length = 0;
+    markerKeys.clear();
+
+    for (const row of currentMap.cells) {
+      for (const cell of row) {
+        if (cell.type === TileType.IslandDiscovered) {
+          addMarker(cell.row, cell.col);
+        }
+      }
+    }
+  }
+
+  // Initial markers
+  for (const row of map.cells) {
+    for (const cell of row) {
+      if (cell.type === TileType.IslandDiscovered) {
+        addMarker(cell.row, cell.col);
+      }
+    }
+  }
+
+  // Animate markers
+  let markerTime = 0;
+  const markerObserver = scene.onBeforeRenderObservable.add(() => {
+    markerTime += engine.getDeltaTime() / 1000;
+    for (const m of markers) {
+      m.root.position.y = m.baseY + Math.sin(markerTime * MARKER_BOB_SPEED + m.phase) * MARKER_BOB_AMP;
+      m.root.rotation.y = markerTime * MARKER_ROTATE_SPEED + m.phase;
+    }
+  });
 
   // Fog
 
@@ -138,6 +229,9 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap): MapResult
       const newNumericGrid = newMap.cells.map(row => row.map(cell => Number(cell.type)));
       const newIslands = buildIslandMeshes(newNumericGrid, TILE_SIZE, GAP, scene);
       islandMeshes.push(...newIslands);
+
+      // Rebuild markers (discovered islands may have changed)
+      rebuildMarkers();
     }
   }
 
@@ -175,6 +269,8 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap): MapResult
         knownCells.add(`${cell.row}_${cell.col}_${cell.type}`);
       }
     }
+
+    rebuildMarkers();
   }
 
   function dispose() {
@@ -184,6 +280,11 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap): MapResult
 
     for (const m of islandMeshes) m.dispose();
 
+    for (const m of markers) m.root.dispose();
+    scene.onBeforeRenderObservable.remove(markerObserver);
+    barMaster.dispose();
+    dotMaster.dispose();
+    markerRedMat.dispose();
 
     oceanFloor.dispose();
   }
