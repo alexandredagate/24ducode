@@ -4,6 +4,8 @@ import { createMap } from "../utils/create-map";
 import { createBoat } from "../utils/boat";
 import { createBoatController } from "../utils/boat-controller";
 import mapRaw from "../assets/map.txt?raw";
+import { connect, requestMapGrid, onMapUpdate } from "../services/socket";
+import { serverGridToGameMap } from "../services/map-converter";
 
 function createSkybox(scene: Scene) {
     Effect.ShadersStore['skyGradientVertexShader'] = `
@@ -99,8 +101,25 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
 
     createSkybox(scene);
 
-    const map = parseMap(mapRaw);
+    // Connect to server and fetch map (fallback to static file)
+    let map;
+    try {
+        connect();
+        const gridData = await requestMapGrid();
+        map = serverGridToGameMap(gridData);
+        console.log('[game] using server map', map.cols, 'x', map.rows);
+    } catch (err) {
+        console.warn('[game] server map unavailable, using static fallback', err);
+        map = parseMap(mapRaw);
+    }
+
     const { tileMeshes } = createMap(scene, engine, map);
+
+    // Listen for map updates from the server
+    onMapUpdate((_gridData) => {
+        console.log('[game] map:update received — rebuild needed');
+        // TODO: rebuild map dynamically when updates arrive
+    });
 
     const firstWater = map.cells.flat().find(c => c.type === TileType.Water);
     if (firstWater) {
