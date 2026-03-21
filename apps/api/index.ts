@@ -2,6 +2,7 @@ import "dotenv/config";
 import { createServer } from "http";
 import express from "express";
 import { createSocketServer } from "./socket";
+import { connectDb } from "./services/db";
 
 const PORT = Number(process.env.PORT) || 3001;
 
@@ -15,7 +16,15 @@ app.get("/health", (_req, res) => {
 const httpServer = createServer(app);
 createSocketServer(httpServer);
 
-httpServer.listen(PORT, () => {
-  console.log(`[api] listening on http://localhost:${PORT}`);
-  console.log(`[api] socket.io ready`);
+async function start() {
+  await connectDb();
+  httpServer.listen(PORT, () => {
+    console.log(`[api] listening on http://localhost:${PORT}`);
+    console.log(`[api] socket.io ready`);
+  });
+}
+
+start().catch((err) => {
+  console.error("[api] failed to start:", err);
+  process.exit(1);
 });
