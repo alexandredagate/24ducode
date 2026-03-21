@@ -31,11 +31,10 @@ function createClient(codingGameId: string): AxiosInstance {
 
 function handleError(err: unknown): never {
   if (err instanceof AxiosError) {
-    const msg =
-      err.response?.data?.message ||
-      err.response?.data?.codeError ||
-      err.message;
-    throw new Error(msg);
+    const data = err.response?.data;
+    const msg = data?.message || data?.codeError || err.message;
+    const detail = typeof data === "object" && data ? JSON.stringify(data) : "";
+    throw new Error(detail && detail !== `"${msg}"` ? `${msg} — ${detail}` : msg);
   }
   throw err;
 }
