@@ -1,0 +1,524 @@
+openapi: 3.0.2
+info:
+    title: API 3026
+    version: 1.0.0
+    description: Cette OAS contient toutes les API nécessaires pour jouer au jeu 3026 des 24h du code 2026.
+    contact:
+        name: DF24 MMA
+paths:
+    /signupcodes:
+        description: Inscrire votre équipe
+        post:
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SignupCodeRequest'
+                required: true
+            tags:
+                - registration
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SignupCodeResponse'
+                    description: Enregistrement de l'équipe OK
+    /resources:
+        get:
+            tags:
+                - player
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: '#/components/schemas/Resource'
+                    description: Etat des stocks disponibles.
+            security:
+                -
+                    api-key: []
+            description: Consulter l'état de ses ressources actuelles
+    /ship/build:
+        post:
+            tags:
+                - ship
+            responses:
+                '201':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ShipBuildResponse'
+                    description: >-
+                        Le bateau a bien été construit, il a été placé le long d'une côte de votre île de
+                        départ. Attention: conserver précieusement l'id de votre bateau pour la suite.
+            security:
+                -
+                    api-key: []
+            description: Construire votre premier bateau.
+    /ship/move:
+        post:
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ShipMoveRequest'
+                required: true
+            tags:
+                - ship
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ShipMoveResponse'
+                    description: >-
+                        Mouvement validé avec la nouvelle position courante, les cellules visibles autour du
+                        bateau (potentiellement d'autres bateaux présents dans la zone) et l'énergie restante
+                        (nombre de points de mouvement encore disponible).
+                '400':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Mouvement refusé ou impossible. Voir l'erreur renvoyée.
+            security:
+                -
+                    api-key: []
+            description: Déplacement du bateau
+    /players/register:
+        description: ''
+        post:
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/Player'
+                required: true
+            tags:
+                - registration
+            parameters:
+                -
+                    name: codinggame-signupcode
+                    description: Signupcode reçu dans votre mail d'inscription.
+                    schema:
+                        type: string
+                    in: header
+                    required: true
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Player'
+                    description: >-
+                        Création du joueur OK avec son coddingGameId associé unique. Attention: cet
+                        identifiant doit rester secret, ne le transmettez à personne d'autre que votre équipe.
+                        Il servira de token d'accès aux API du jeu 3026. 
+            description: Création de votre équipe en lui donnant un nom.
+    /players/details:
+        description: Details du joueur
+        get:
+            tags:
+                - player
+            responses:
+                '200':
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlayerDetails'
+                    description: Details du joueur
+            security:
+                -
+                    api-key: []
+            description: 'Donne les infos nécessaires du joueurs: solde, ressources, îles découvertes, etc.'
+components:
+    schemas:
+        SignupCodeResponse:
+            title: Root Type for SignupCodeResponse
+            description: ''
+            type: object
+            properties:
+                signupCode:
+                    type: string
+            example:
+                signupCode: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        Player:
+            title: Root Type for Player
+            description: ''
+            required:
+                - name
+            type: object
+            properties:
+                name:
+                    type: string
+                codingGameId:
+                    description: >-
+                        Token unique de l'équipe. Attention: ce token doit rester secret, ne le transmettez à
+                        personne d'autre que votre équipe. Il servira de token d'accès aux API du jeu 3026. 
+                    type: string
+            example:
+                name: Joueur1
+        Cell:
+            title: Root Type for Cell
+            description: Représente une case de la map
+            required:
+                - id
+                - type
+                - x
+                - 'y'
+                - zone
+            type: object
+            properties:
+                id:
+                    type: string
+                x:
+                    type: integer
+                'y':
+                    type: integer
+                type:
+                    description: Type de terrain de la cellule.
+                    enum:
+                        - SEA
+                        - SAND
+                        - ROCKS
+                    type: string
+                zone:
+                    description: Zone à laquelle appartient la cellule.
+                    type: integer
+            example:
+                id: azaz121513daz
+                x: 45
+                'y': '-12'
+                type: SEA
+                zone: 3
+        Ship:
+            title: Root Type for Ship
+            description: '        '
+            required:
+                - availableMove
+                - level
+                - currentPosition
+            type: object
+            properties:
+                availableMove:
+                    type: integer
+                level:
+                    $ref: '#/components/schemas/ShipLevel'
+                currentPosition:
+                    $ref: '#/components/schemas/Cell'
+                    description: ''
+                playerName:
+                    description: Nom du joueur possédant le bateau
+                    type: string
+                costResources:
+                    $ref: '#/components/schemas/PriceResources'
+                    description: ''
+            example:
+                availableMove: 3
+                level:
+                    id: 1
+                    name: barque
+                    visibilityRange: 1
+                    maxMovement: 5
+                    speed: 1
+        ShipMoveRequest:
+            title: Root Type for ShipMoveRequest
+            description: ''
+            required:
+                - direction
+            type: object
+            properties:
+                direction:
+                    enum:
+                        - 'N'
+                        - S
+                        - E
+                        - W
+                        - NE
+                        - NW
+                        - SE
+                        - SW
+                    type: string
+            example:
+                direction: E
+        ShipMoveResponse:
+            title: Root Type for ShipMoveResponse
+            description: ''
+            type: object
+            properties:
+                discoveredCells:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Cell'
+                position:
+                    type: object
+                    properties:
+                        id:
+                            type: string
+                        x:
+                            format: int32
+                            type: integer
+                        'y':
+                            format: int32
+                            type: integer
+                        type:
+                            type: string
+                        zone:
+                            format: int32
+                            type: integer
+                        ships:
+                            type: array
+                            items: {}
+                        visibilityState:
+                            type: array
+                            items: {}
+                        positionHistory:
+                            type: array
+                            items: {}
+                energy:
+                    format: int32
+                    type: integer
+            example:
+                discoveredCells:
+                    -
+                        id: 7fd566c8-dbfa-4620-933d-3462e0e5519c
+                        x: 0
+                        'y': -6
+                        type: SEA
+                        zone: 1
+                        ships: []
+                    -
+                        id: 38072999-8722-4d81-ad8c-d80f5afb3a27
+                        x: -1
+                        'y': -5
+                        type: SEA
+                        zone: 1
+                        ships: []
+                    -
+                        id: 0fa50f7b-3bdd-42c5-a173-2a63cfee164c
+                        x: 0
+                        'y': -5
+                        type: SEA
+                        zone: 1
+                        ships: []
+                    -
+                        id: 64a21736-23a7-4ee5-8bee-fad4cc7edd69
+                        x: 1
+                        'y': -5
+                        type: SEA
+                        zone: 1
+                        ships: []
+                    -
+                        id: 7402ff4b-a81e-4384-8144-04d54b278c44
+                        x: 0
+                        'y': -4
+                        type: SEA
+                        zone: 1
+                        ships:
+                            -
+                                level:
+                                    id: 1
+                                    name: barque
+                                playerName: Joueur 1
+                position:
+                    id: 0fa50f7b-3bdd-42c5-a173-2a63cfee164c
+                    x: 0
+                    'y': -5
+                    type: SEA
+                    zone: 1
+                    ships: []
+                energy: 83
+        CellState:
+            title: Root Type for CellState
+            description: Etat d'une case
+            type: object
+            properties:
+                id:
+                    type: string
+                stateEnum:
+                    description: >-
+                        3 états possibles : 
+
+
+                        VISITED: votre bateau a déjà visité cette case (ou l'a apercu dans son champs de
+                        vision) même s'il n'a pas pu rentrer à temps sur une île découverte.
+
+                        SEEN: votre bateau a vu cette case (soit en passant dessus soit dans son champs de
+                        vision) dans son trajet actuel.
+
+                        KNOWN: votre bateau a vu cette case et a pu rentré sur une île découverte pour valider
+                        sa découverte.
+
+
+                        Si pas d'état associé, case inconnu jamais découverte.
+                    enum:
+                        - VISITED
+                        - SEEN
+                        - KNOWN
+                    type: string
+            example:
+                id: '516413164654'
+                stateEnum: SEEN
+        Error:
+            title: Root Type for Error
+            description: Format standard de toutes les erreurs
+            type: object
+            properties:
+                codeError:
+                    type: string
+                message:
+                    type: string
+            example:
+                codeError: GAME_OVER_INSERT_COINS
+                message: Vous devez payer l'amende.
+        Resource:
+            title: Root Type for Resource
+            description: >-
+                Représente une ressource du jeu. Il y a au total 3 ressources primaires (BOISIUM, FERONIUM et
+                CHARBONIUM) et une faisant office de monnaie (OR).
+            type: object
+            properties:
+                quantity:
+                    type: integer
+                type:
+                    enum:
+                        - FERONIUM
+                        - BOISIUM
+                        - CHARBONIUM
+                    type: string
+            example:
+                quantity: 200
+                type: BOISIUM
+        Island:
+            title: Root Type for Island
+            description: ''
+            type: object
+            properties:
+                name:
+                    type: string
+                bonusQuotient:
+                    description: Gain de productivité lors de la découverte de l'île pour la ressource principal.
+                    type: integer
+            example:
+                name: Little Garden
+                bonusQuotient: 0
+        DiscoveredIsland:
+            title: Root Type for DiscoveredIslands
+            description: ''
+            type: object
+            properties:
+                island:
+                    $ref: '#/components/schemas/Island'
+                    properties:
+                        name:
+                            type: string
+                        bonusQuotient:
+                            format: int32
+                            type: integer
+                islandState:
+                    enum:
+                        - KNOWN
+                        - DISCOVERED
+                    type: string
+            example:
+                island:
+                    name: Little Garden
+                    bonusQuotient: 0
+                islandState: KNOWN
+        PlayerDetails:
+            title: Root Type for PlayerDetails
+            description: Details d'un joueur
+            type: object
+            properties:
+                id:
+                    type: string
+                signUpCode:
+                    type: string
+                name:
+                    type: string
+                quotient:
+                    type: integer
+                money:
+                    type: integer
+                resources:
+                    type: array
+                    items:
+                        type: object
+                        properties:
+                            quantity:
+                                format: int32
+                                type: integer
+                            type:
+                                type: string
+                home:
+                    $ref: '#/components/schemas/Island'
+                    properties:
+                        name:
+                            type: string
+                        bonusQuotient:
+                            format: int32
+                            type: integer
+                discoveredIslands:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DiscoveredIsland'
+                marketPlaceDiscovered:
+                    type: boolean
+            example:
+                id: f243e889-d35f-48ef-9ee0-e48813ddd7ef
+                signUpCode: >-
+                    eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjb2RpbmdnYW1lIiwic3ViIjoidGVzdEBnbWFpbC5jb20ifQ.9Wt33f1kXCZml8ERnAF9Qol0CFdyQnqJNLc0k2gp7Dc
+                name: Joueur 1
+                quotient: 200
+                money: 900
+                resources:
+                    -
+                        quantity: 1600
+                        type: FERONIUM
+                    -
+                        quantity: 1800
+                        type: BOISIUM
+                    -
+                        quantity: 1800
+                        type: CHARBONIUM
+                home:
+                    name: Little Garden
+                    bonusQuotient: 0
+                discoveredIslands:
+                    -
+                        island:
+                            name: Little Garden
+                            bonusQuotient: 0
+                        islandState: KNOWN
+                marketPlaceDiscovered: false
+        SignupCodeRequest:
+            title: Root Type for SignupCodeRequest
+            description: ''
+            required:
+                - email
+            type: object
+            properties:
+                mail:
+                    description: ''
+                    type: string
+            example:
+                mail: mail.test@gmail.com
+    securitySchemes:
+        api-key:
+            type: apiKey
+            description: Toutes les API sont sécurisées via un token JWT unique non expirable.
+            name: codinggame-id
+            in: header
+tags:
+    -
+        name: ship
+        description: ''
+    -
+        name: player
+        description: ''
+    -
+        name: registration
+        description: Inscription au jeu 3026

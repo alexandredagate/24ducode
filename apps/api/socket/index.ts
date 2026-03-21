@@ -27,7 +27,7 @@ export function createSocketServer(httpServer: HttpServer): SocketServer {
       methods: ["GET", "POST"],
     },
     connectionStateRecovery: {
-      maxDisconnectionDuration: 2 * 60 * 1000,
+      maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
       skipMiddlewares: true,
     },
   });

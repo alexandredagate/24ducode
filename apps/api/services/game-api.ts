@@ -40,7 +40,9 @@ function handleError(err: unknown): never {
   throw err;
 }
 
-export async function getPlayerDetails(codingGameId: string): Promise<PlayerDetails> {
+export async function getPlayerDetails(
+  codingGameId: string
+): Promise<PlayerDetails> {
   try {
     const { data } = await createClient(codingGameId).get("/players/details");
     return data as PlayerDetails;
@@ -51,7 +53,9 @@ export async function getPlayerDetails(codingGameId: string): Promise<PlayerDeta
 
 export async function getResources(codingGameId: string): Promise<Resource[]> {
   try {
+    console.log("getResources");
     const { data } = await createClient(codingGameId).get("/resources");
+    console.log(data);
     return data as Resource[];
   } catch (err) {
     handleError(err);
@@ -67,9 +71,14 @@ export async function buildShip(codingGameId: string): Promise<ShipBuildResponse
   }
 }
 
-export async function moveShip(codingGameId: string, direction: Direction): Promise<ShipMoveResponse> {
+export async function moveShip(
+  codingGameId: string,
+  direction: Direction
+): Promise<ShipMoveResponse> {
   try {
-    const { data } = await createClient(codingGameId).post("/ship/move", { direction });
+    const { data } = await createClient(codingGameId).post("/ship/move", {
+      direction,
+    });
     return data as ShipMoveResponse;
   } catch (err) {
     handleError(err);
