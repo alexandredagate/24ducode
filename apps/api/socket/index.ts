@@ -4,11 +4,13 @@ import { authMiddleware } from "./middleware/auth";
 import { handleAuth } from "./handlers/auth";
 import { handlePlayer } from "./handlers/player";
 import { handleShip } from "./handlers/ship";
+import { handleMap } from "./handlers/map";
 import type { ClientCommand, ServerResponse, CommandName } from "types";
 
 const AUTH_COMMANDS = new Set<CommandName>(["auth:login", "auth:refresh", "auth:logout"]);
 const PLAYER_COMMANDS = new Set<CommandName>(["player:details", "player:resources"]);
 const SHIP_COMMANDS = new Set<CommandName>(["ship:move"]);
+const MAP_COMMANDS = new Set<CommandName>(["map:grid"]);
 
 export function createSocketServer(httpServer: HttpServer): SocketServer {
   const io = new SocketServer(httpServer, {
@@ -45,7 +47,9 @@ export function createSocketServer(httpServer: HttpServer): SocketServer {
         } else if (PLAYER_COMMANDS.has(command)) {
           response = await handlePlayer(socket, msg);
         } else if (SHIP_COMMANDS.has(command)) {
-          response = await handleShip(socket, msg);
+          response = await handleShip(socket, msg, io);
+        } else if (MAP_COMMANDS.has(command)) {
+          response = await handleMap(socket, msg);
         } else {
           throw new Error(`Unknown command: ${command}`);
         }

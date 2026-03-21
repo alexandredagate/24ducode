@@ -8,7 +8,9 @@ export type CommandName =
   | "player:resources"
   // Ship
   | "ship:build"
-  | "ship:move";
+  | "ship:move"
+  // Map
+  | "map:grid";
 
 export interface ClientCommand<T = unknown> {
   command: CommandName;
