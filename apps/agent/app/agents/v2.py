@@ -326,47 +326,60 @@ class AgentV2(BaseAgent):
         zone = self._current_zone
         buffer = settings.energy_buffer
 
-        # --- 1. URGENCE FUEL ---
-        nearest = self._find_nearest_known_island(pos, zone)
-        if not nearest:
-            nearest = HOME_POSITION
-        dist_nearest = _distance(pos["x"], pos["y"], nearest["x"], nearest["y"], zone)
+        # ╔══════════════════════════════════════════════════════════╗
+        # ║  FUEL CHECK — TOUJOURS EN PREMIER, JAMAIS IGNORÉ       ║
+        # ╚══════════════════════════════════════════════════════════╝
+        nearest_known = self._find_nearest_known_island(pos, zone)
+        if not nearest_known:
+            nearest_known = HOME_POSITION
+        dist_to_safe = _distance(pos["x"], pos["y"], nearest_known["x"], nearest_known["y"], zone)
 
-        if energy <= dist_nearest + buffer:
-            if not self._waypoints or not self._waypoints[0].get("reason", "").startswith("fuel"):
-                self._set_waypoint(nearest, "fuel_emergency")
-                logger.info(
-                    "⛽ ══ URGENCE FUEL ══ energy=%s <= dist(%s)+buffer(%s) → retour (%s,%s)",
-                    energy, dist_nearest, buffer, nearest["x"], nearest["y"],
-                )
+        # URGENCE : on ne peut plus se permettre de faire autre chose
+        if energy <= dist_to_safe + buffer:
+            self._waypoints.clear()
+            self._path_queue.clear()
+            self._set_waypoint(nearest_known, "fuel_emergency")
+            logger.info(
+                "⛽ ══ URGENCE FUEL ══ energy=%s <= dist(%s)+buffer(%s) → DIRECT (%s,%s)",
+                energy, dist_to_safe, buffer, nearest_known["x"], nearest_known["y"],
+            )
             return
 
-        # --- 1b. RECHARGE PROACTIVE ---
+        # PROACTIF : fuel sous le ratio → retour sauf si déjà sur l'île
         if self._max_energy > 0 and energy < int(settings.low_fuel_ratio * self._max_energy):
-            if dist_nearest > 0:
-                self._set_waypoint(nearest, "fuel_proactive")
+            if dist_to_safe > 0:
+                self._waypoints.clear()
+                self._path_queue.clear()
+                self._set_waypoint(nearest_known, "fuel_proactive")
                 logger.info(
                     "⛽ Recharge proactive energy=%s < %s%% max(%s) → (%s,%s) dist=%s",
                     energy, int(settings.low_fuel_ratio * 100), self._max_energy,
-                    nearest["x"], nearest["y"], dist_nearest,
+                    nearest_known["x"], nearest_known["y"], dist_to_safe,
                 )
                 return
 
-        # --- 2. VALIDATION EN COURS ---
+        # ╔══════════════════════════════════════════════════════════╗
+        # ║  OBJECTIFS — seulement si le fuel est OK                ║
+        # ╚══════════════════════════════════════════════════════════╝
+
+        # Chaque objectif ci-dessous vérifie qu'on a assez de fuel pour
+        # y aller ET revenir à l'île KNOWN la plus proche après.
+
+        # --- VALIDATION EN COURS ---
         if self._waypoints and self._waypoints[0].get("reason", "").startswith("validate"):
             wp = self._waypoints[0]
             dist_wp = _distance(pos["x"], pos["y"], wp["x"], wp["y"], zone)
             if energy > dist_wp + buffer:
-                return
+                return  # on continue, fuel OK
 
-        # --- 3. CAP ZONE SUPERIEURE EN COURS ---
+        # --- CAP ZONE SUPERIEURE EN COURS ---
         if self._waypoints and self._waypoints[0].get("reason") == "higher_zone":
             wp = self._waypoints[0]
             dist_wp = _distance(pos["x"], pos["y"], wp["x"], wp["y"], zone)
             if energy > dist_wp + buffer:
                 return
 
-        # --- 4. ZONE SUPERIEURE DISPONIBLE ---
+        # --- ZONE SUPERIEURE DISPONIBLE ---
         max_zone = self.world.max_known_zone()
         if max_zone > zone:
             higher_islands = self.world.islands_in_zone(max_zone)
@@ -388,21 +401,34 @@ class AgentV2(BaseAgent):
                     self._set_waypoints([refuel, target], "higher_zone_via_refuel")
                     return
 
-        # --- 5. MODE EXPLORATION ---
+        # --- MODE EXPLORATION ---
+        # Avant d'explorer : vérifier qu'on a assez de fuel pour au moins
+        # explorer un peu ET revenir. Sinon, retour direct.
+        min_explore_fuel = dist_to_safe + buffer + 3  # au moins 3 moves d'exploration
+        if energy < min_explore_fuel:
+            self._waypoints.clear()
+            self._path_queue.clear()
+            self._set_waypoint(nearest_known, "fuel_before_explore")
+            logger.info(
+                "⛽ Pas assez de fuel pour explorer (energy=%s < %s) → recharge d'abord (%s,%s)",
+                energy, min_explore_fuel, nearest_known["x"], nearest_known["y"],
+            )
+            return
+
         self._waypoints.clear()
         self._path_queue.clear()
 
     def _find_nearest_known_island(self, pos: dict, zone: int) -> dict | None:
-        """Trouve l'île KNOWN (validée) la plus proche. Seules celles-ci rechargent le fuel."""
+        """Trouve l'île KNOWN la plus proche par chunk expanding (16→32→64→128→global).
+        Priorise la même zone, fallback toutes zones."""
         if not self.world:
             return None
-        nearest = self.world.nearest_known_islands(pos["x"], pos["y"], zone, n=1, same_zone=True)
-        if nearest:
-            return nearest[0]
-        nearest = self.world.nearest_known_islands(pos["x"], pos["y"], zone, n=1)
-        if nearest:
-            return nearest[0]
-        return None
+        # D'abord même zone
+        result = self.world.find_nearest_known_island(pos["x"], pos["y"], zone, same_zone=True)
+        if result:
+            return result
+        # Fallback toutes zones
+        return self.world.find_nearest_known_island(pos["x"], pos["y"], zone)
 
     # ══════════════════════════════════════════════════════════════════════
     # WAYPOINT MANAGEMENT
@@ -501,7 +527,8 @@ class AgentV2(BaseAgent):
     ) -> dict | None:
         if not self.world:
             return None
-        islands = self.world.nearest_known_islands(pos["x"], pos["y"], zone, n=20, same_zone=True)
+        # Chercher des îles KNOWN dans un chunk élargi pour trouver des escales
+        islands = self.world.known_islands_in_chunk(pos["x"], pos["y"], zone, chunk_size=32)
         direct_dist = _distance(pos["x"], pos["y"], dest["x"], dest["y"], zone)
         best = None
         best_detour = MAX_DETOUR_COST + 1
@@ -611,11 +638,11 @@ class AgentV2(BaseAgent):
 
         nearest = None
         if self.world:
-            nearest_list = self.world.nearest_known_islands(
-                ix, iy, self._current_zone, n=1, same_zone=True,
+            nearest = self.world.find_nearest_known_island(
+                ix, iy, self._current_zone, same_zone=True,
             )
-            if nearest_list:
-                nearest = nearest_list[0]
+            if not nearest:
+                nearest = self.world.find_nearest_known_island(ix, iy, self._current_zone)
 
         if not nearest:
             nearest = self.memory.last_known_island_position()
@@ -838,12 +865,16 @@ class AgentV2(BaseAgent):
             return
         nearest = self._find_nearest_known_island(self._current_pos, self._current_zone)
         if nearest:
+            dist = _distance(
+                self._current_pos["x"], self._current_pos["y"],
+                nearest["x"], nearest["y"], self._current_zone,
+            )
             self._set_waypoint(nearest, "error_retreat")
-            logger.info("🔙 REPLI → (%s,%s)", nearest["x"], nearest["y"])
+            logger.info("🔙 REPLI → (%s,%s) dist=%s", nearest["x"], nearest["y"], dist)
         else:
             last = self.memory.last_known_island_position()
             self._set_waypoint(last, "error_retreat_fallback")
-            logger.info("🔙 REPLI FALLBACK → (%s,%s)", last["x"], last["y"])
+            logger.info("🔙 REPLI FALLBACK → HOME (%s,%s)", last["x"], last["y"])
 
     # ══════════════════════════════════════════════════════════════════════
     # ZONE BOUNDARY
