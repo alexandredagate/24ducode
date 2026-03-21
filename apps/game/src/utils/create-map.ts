@@ -1,6 +1,6 @@
-import { Color3, MeshBuilder, StandardMaterial, type Engine, type Mesh, type Scene } from "babylonjs";
+import { Color3, FresnelParameters, StandardMaterial, type Engine, type Mesh, type Scene } from "babylonjs";
 import { type GameMap, TileType, type TileCell } from "./parse-map";
-import { createWaterTiles, addWaterTile } from "./water-tile";
+import { createWaterTiles, addWaterTile, createRoundedBoxMesh } from "./water-tile";
 import { buildIslandMeshes } from "../map/IslandMeshBuilder";
 
 const TILE_SIZE = 1.0;
@@ -47,19 +47,31 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap): MapResult
 
   // Fog
 
-  // Ocean floor
+  // Ocean floor — rounded box matching tile aesthetic
   const borderSize = Math.max(map.rows, map.cols) * STEP + 40;
-  const oceanFloor = MeshBuilder.CreateGround('oceanFloor', {
-    width: borderSize,
-    height: borderSize,
-    subdivisions: 1,
-  }, scene);
-  oceanFloor.position.y = -0.25;
+  const oceanFloor = createRoundedBoxMesh(
+    'oceanFloor',
+    borderSize / 2,
+    0.30,
+    borderSize / 2,
+    0.35,
+    12,
+    scene,
+  );
+  oceanFloor.position.y = -0.35;
 
   const oceanFloorMat = new StandardMaterial('oceanFloorMat', scene);
-  oceanFloorMat.diffuseColor = new Color3(0.03, 0.08, 0.18);
-  oceanFloorMat.emissiveColor = new Color3(0.01, 0.03, 0.06);
-  oceanFloorMat.specularColor = Color3.Black();
+  oceanFloorMat.diffuseColor = new Color3(0.06, 0.25, 0.50);
+  oceanFloorMat.emissiveColor = new Color3(0.01, 0.05, 0.12);
+  oceanFloorMat.specularColor = new Color3(0.3, 0.35, 0.4);
+  oceanFloorMat.specularPower = 48;
+  const fresnelParams = new FresnelParameters();
+  fresnelParams.bias = 0.1;
+  fresnelParams.power = 2.0;
+  fresnelParams.leftColor = new Color3(0.4, 0.65, 0.9);
+  fresnelParams.rightColor = new Color3(0, 0, 0);
+  oceanFloorMat.emissiveFresnelParameters = fresnelParams;
+  oceanFloorMat.backFaceCulling = false;
   oceanFloor.material = oceanFloorMat;
 
   // Tracker les cellules connues

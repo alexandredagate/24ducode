@@ -100,6 +100,8 @@ interface WaterTile {
   animated: boolean;
 }
 
+export { createRoundedBoxMesh };
+
 export function createWaterTiles(scene: Scene, engine: Engine, cells: TileCell[], originX: number, originZ: number) {
   const master = createRoundedBoxMesh(
     'waterTileMaster',

@@ -1,4 +1,4 @@
-import { ArcRotateCamera, Color3, DirectionalLight, HemisphericLight, Scene, Vector3, type Engine } from "babylonjs";
+import { ArcRotateCamera, Color3, CubeTexture, DirectionalLight, HemisphericLight, MeshBuilder, Scene, StandardMaterial, Texture, Vector3, type Engine } from "babylonjs";
 import { parseMap, TileType } from "../utils/parse-map";
 import { createMap } from "../utils/create-map";
 import { createBoat } from "../utils/boat";
@@ -9,6 +9,13 @@ import {
     getMapMeta, type MapMeta,
 } from "../services/socket";
 import { serverGridToGameMap, serverToGrid } from "../services/map-converter";
+
+import skyboxPx from "../assets/skybox/px.png?url";
+import skyboxPy from "../assets/skybox/py.png?url";
+import skyboxPz from "../assets/skybox/pz.png?url";
+import skyboxNx from "../assets/skybox/nx.png?url";
+import skyboxNy from "../assets/skybox/ny.png?url";
+import skyboxNz from "../assets/skybox/nz.png?url";
 
 async function authenticatePlayer(): Promise<boolean> {
     const stored = localStorage.getItem('codingGameId');
@@ -93,6 +100,19 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
     fill.intensity = 0.25;
     fill.diffuse = new Color3(0.8, 0.65, 0.40);
     fill.groundColor = new Color3(0.5, 0.40, 0.25);
+
+    // ─── Skybox ─────────────────────────────────────
+    const skybox = MeshBuilder.CreateBox('skybox', { size: 150 }, scene);
+    const skyMat = new StandardMaterial('skyboxMat', scene);
+    skyMat.backFaceCulling = false;
+    skyMat.disableLighting = true;
+    skyMat.reflectionTexture = CubeTexture.CreateFromImages(
+        [skyboxPx, skyboxPy, skyboxPz, skyboxNx, skyboxNy, skyboxNz],
+        scene,
+    );
+    skyMat.reflectionTexture!.coordinatesMode = Texture.SKYBOX_MODE;
+    skybox.material = skyMat;
+    skybox.infiniteDistance = true;
 
     // ─── Connect & authenticate ──────────────────────
     let serverAvailable = false;
