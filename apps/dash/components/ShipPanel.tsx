@@ -199,16 +199,16 @@ export function ShipPanel({
           </div>
           <div className="p-5 space-y-4">
             {/* Stats */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-lg bg-zinc-900 px-3 py-2.5 text-center">
-                <div className="text-xs text-zinc-500 mb-0.5">Mouvements max</div>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="rounded-lg bg-zinc-900 px-2 sm:px-3 py-2.5 text-center">
+                <div className="text-xs text-zinc-500 mb-0.5">Mouv. max</div>
                 <div className="text-lg font-bold text-white">{shipNextLevel.level!.maxMovement}</div>
               </div>
-              <div className="rounded-lg bg-zinc-900 px-3 py-2.5 text-center">
+              <div className="rounded-lg bg-zinc-900 px-2 sm:px-3 py-2.5 text-center">
                 <div className="text-xs text-zinc-500 mb-0.5">Visibilité</div>
                 <div className="text-lg font-bold text-white">{shipNextLevel.level!.visibilityRange}</div>
               </div>
-              <div className="rounded-lg bg-zinc-900 px-3 py-2.5 text-center">
+              <div className="rounded-lg bg-zinc-900 px-2 sm:px-3 py-2.5 text-center">
                 <div className="text-xs text-zinc-500 mb-0.5">Vitesse</div>
                 <div className="text-lg font-bold text-white">{shipNextLevel.level!.speed}</div>
               </div>
@@ -218,9 +218,9 @@ export function ShipPanel({
             {shipNextLevel.costResources && (
               <div>
                 <div className="text-xs text-zinc-500 mb-2">Coût de l'amélioration</div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                   {Object.entries(shipNextLevel.costResources).map(([resource, qty]) => (
-                    <div key={resource} className="rounded-lg bg-zinc-900 px-3 py-2 text-center">
+                    <div key={resource} className="rounded-lg bg-zinc-900 px-2 sm:px-3 py-2 text-center">
                       <div className="text-xs text-zinc-500">{resource}</div>
                       <div className="text-sm font-bold text-white mt-0.5">{qty.toLocaleString()}</div>
                     </div>

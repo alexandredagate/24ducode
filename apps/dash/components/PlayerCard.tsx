@@ -27,12 +27,12 @@ export function PlayerCard({ player, storage, onUpgradeStorage }: PlayerCardProp
     <div className="space-y-4">
       {/* En-tête joueur */}
       <div className="rounded-xl bg-zinc-800 border border-zinc-700 p-5">
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
           <div>
             <h2 className="text-xl font-bold text-white">{player.name}</h2>
             <p className="text-zinc-400 text-sm mt-0.5">Île : {player.home.name}</p>
           </div>
-          <div className="text-right">
+          <div className="sm:text-right">
             <div className="text-2xl font-bold text-yellow-400">{player.money.toLocaleString()} OR</div>
             <div className="text-zinc-400 text-xs mt-0.5">Quotient de productivité : {player.quotient}</div>
           </div>
@@ -45,7 +45,7 @@ export function PlayerCard({ player, storage, onUpgradeStorage }: PlayerCardProp
       </div>
 
       {/* Ressources */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {player.resources.map((r) => {
           const maxQty = storage?.maxResources[r.type as keyof typeof storage.maxResources];
           const pct = maxQty ? Math.round((r.quantity / maxQty) * 100) : null;
@@ -79,7 +79,7 @@ export function PlayerCard({ player, storage, onUpgradeStorage }: PlayerCardProp
       {/* Upgrade entrepôt */}
       {storage && (
         <div className="rounded-xl bg-zinc-800 border border-zinc-700 p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-zinc-200">Entrepôt prochain niveau : {storage.name}</div>
               <div className="text-xs text-zinc-500 mt-1">
@@ -92,7 +92,7 @@ export function PlayerCard({ player, storage, onUpgradeStorage }: PlayerCardProp
             <button
               type="button"
               onClick={onUpgradeStorage}
-              className="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium transition-colors"
+              className="w-full sm:w-auto px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium transition-colors"
             >
               Améliorer
             </button>

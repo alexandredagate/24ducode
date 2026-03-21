@@ -62,6 +62,13 @@ export interface StorageInfo {
   costResources: { FERONIUM: number; BOISIUM: number; CHARBONIUM: number };
 }
 
+export interface BrokerEvent {
+  id: number;
+  receivedAt: string;
+  type: string;
+  data: unknown;
+}
+
 interface SocketResponse<T = unknown> {
   command: string;
   status: "ok" | "error";
@@ -87,6 +94,8 @@ interface UseSocketReturn {
   taxes: Tax[];
   marketOffers: MarketOffer[];
   storageInfo: StorageInfo | null;
+  brokerEvents: BrokerEvent[];
+  clearBrokerEvents: () => void;
   refreshAll: () => void;
   lastError: string | null;
 }
@@ -107,6 +116,8 @@ export function useSocket(): UseSocketReturn {
   const [taxes, setTaxes] = useState<Tax[]>([]);
   const [marketOffers, setMarketOffers] = useState<MarketOffer[]>([]);
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
+  const [brokerEvents, setBrokerEvents] = useState<BrokerEvent[]>([]);
+  const brokerIdRef = useRef(0);
   const [lastError, setLastError] = useState<string | null>(null);
 
   // Refs stables pour les callbacks utilisés dans useEffect sans les mettre en deps
@@ -240,6 +251,13 @@ export function useSocket(): UseSocketReturn {
 
     setupResponseRouter(socket);
 
+    const pushEvent = (type: string, data: unknown) => {
+      setBrokerEvents((prev) => [
+        { id: brokerIdRef.current++, receivedAt: new Date().toISOString(), type, data },
+        ...prev,
+      ].slice(0, 200));
+    };
+
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => {
       setConnected(false);
@@ -250,8 +268,19 @@ export function useSocket(): UseSocketReturn {
     });
 
     // map:update → refresh ship via la ref stable (pas de race condition)
-    socket.on("map:update", () => {
+    socket.on("map:update", (data: unknown) => {
       refreshShipNextLevelRef.current();
+      pushEvent("MAP_UPDATE", data);
+    });
+
+    // ship:position → track position broadcasts
+    socket.on("ship:position", (data: unknown) => {
+      pushEvent("SHIP_POSITION", data);
+    });
+
+    // broker:event → AMQP events from the game server
+    socket.on("broker:event", (msg: { type?: string; data?: unknown }) => {
+      pushEvent(msg.type ?? "BROKER", msg.data ?? msg);
     });
 
     // Auto-refresh du token si déjà connecté
@@ -317,6 +346,7 @@ export function useSocket(): UseSocketReturn {
     setTaxes([]);
     setMarketOffers([]);
     setStorageInfo(null);
+    setBrokerEvents([]);
     for (const entry of pendingRef.current.values()) clearTimeout(entry.timeout);
     pendingRef.current.clear();
   }, []);
@@ -335,6 +365,8 @@ export function useSocket(): UseSocketReturn {
     availableMove,
     taxes,
     marketOffers,
+    brokerEvents,
+    clearBrokerEvents: useCallback(() => setBrokerEvents([]), []),
     storageInfo,
     refreshAll,
     lastError,

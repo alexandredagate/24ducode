@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BrokerEventsPanel } from "../components/BrokerEventsPanel";
 import { LoginForm } from "../components/LoginForm";
 import { MarketplacePanel } from "../components/MarketplacePanel";
 import { PlayerCard } from "../components/PlayerCard";
@@ -9,13 +10,14 @@ import { TaxesPanel } from "../components/TaxesPanel";
 import { useSocket } from "../hooks/useSocket";
 import type { Direction, ResourceType } from "../hooks/useSocket";
 
-type Tab = "overview" | "ship" | "marketplace" | "taxes";
+type Tab = "overview" | "ship" | "marketplace" | "taxes" | "events";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Vue globale" },
   { id: "ship", label: "Bateau" },
   { id: "marketplace", label: "Marketplace" },
   { id: "taxes", label: "Taxes" },
+  { id: "events", label: "Events" },
 ];
 
 export default function Home() {
@@ -34,6 +36,8 @@ export default function Home() {
     taxes,
     marketOffers,
     storageInfo,
+    brokerEvents,
+    clearBrokerEvents,
     refreshAll,
     lastError,
   } = useSocket();
@@ -123,46 +127,57 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
-      <header className="border-b border-zinc-800 bg-zinc-900 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-xl font-bold tracking-tight">3026</span>
-          {playerDetails && (
-            <span className="text-zinc-500 text-sm">· {playerDetails.name}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          {playerDetails && (
-            <div className="flex items-center gap-4 text-sm">
-              <span className="text-yellow-400 font-semibold">
-                {playerDetails.money.toLocaleString()} OR
-              </span>
-              <span className="text-zinc-500">Quotient : {playerDetails.quotient}</span>
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-400" : "bg-red-500"}`} />
-            <span className="text-xs text-zinc-500">{connected ? "Connecté" : "Déconnecté"}</span>
+      <header className="border-b border-zinc-800 bg-zinc-900 px-4 sm:px-6 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-xl font-bold tracking-tight">3026</span>
+            {playerDetails && (
+              <span className="text-zinc-500 text-sm hidden sm:inline">· {playerDetails.name}</span>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition-colors disabled:opacity-40"
-          >
-            {refreshing ? "↻" : "Actualiser"}
-          </button>
-          <button
-            type="button"
-            onClick={logout}
-            className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs transition-colors"
-          >
-            Déconnexion
-          </button>
+          <div className="flex items-center gap-2 sm:gap-3">
+            {playerDetails && (
+              <div className="hidden sm:flex items-center gap-4 text-sm">
+                <span className="text-yellow-400 font-semibold">
+                  {playerDetails.money.toLocaleString()} OR
+                </span>
+                <span className="text-zinc-500">Quotient : {playerDetails.quotient}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-400" : "bg-red-500"}`} />
+              <span className="text-xs text-zinc-500 hidden sm:inline">{connected ? "Connecté" : "Déconnecté"}</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition-colors disabled:opacity-40"
+            >
+              {refreshing ? "↻" : "↻"}
+            </button>
+            <button
+              type="button"
+              onClick={logout}
+              className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs transition-colors"
+            >
+              <span className="sm:hidden">✕</span>
+              <span className="hidden sm:inline">Déconnexion</span>
+            </button>
+          </div>
         </div>
+        {playerDetails && (
+          <div className="flex items-center gap-4 text-sm mt-2 sm:mt-0 sm:hidden">
+            <span className="text-yellow-400 font-semibold">
+              {playerDetails.money.toLocaleString()} OR
+            </span>
+            <span className="text-zinc-500">Q: {playerDetails.quotient}</span>
+          </div>
+        )}
       </header>
 
-      <nav className="border-b border-zinc-800 bg-zinc-900 px-6">
-        <div className="flex gap-1">
+      <nav className="border-b border-zinc-800 bg-zinc-900 px-4 sm:px-6 overflow-x-auto">
+        <div className="flex gap-1 min-w-max">
           {TABS.map((tab) => (
             <button
               key={tab.id}
@@ -185,7 +200,7 @@ export default function Home() {
         </div>
       </nav>
 
-      <main className="flex-1 p-6 max-w-4xl mx-auto w-full">
+      <main className="flex-1 p-4 sm:p-6 max-w-4xl mx-auto w-full">
         {activeTab === "overview" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
@@ -228,6 +243,10 @@ export default function Home() {
 
         {activeTab === "taxes" && (
           <TaxesPanel taxes={taxes} onPay={handleTaxPay} onRefresh={refreshAll} />
+        )}
+
+        {activeTab === "events" && (
+          <BrokerEventsPanel events={brokerEvents} onClear={clearBrokerEvents} />
         )}
       </main>
     </div>

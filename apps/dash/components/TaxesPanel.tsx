@@ -65,7 +65,7 @@ export function TaxesPanel({ taxes, onPay, onRefresh }: TaxesPanelProps) {
           {due.map((tax) => (
             <div
               key={tax.id}
-              className="rounded-xl bg-red-950 border border-red-800 p-4 flex items-center justify-between gap-4"
+              className="rounded-xl bg-red-950 border border-red-800 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -82,7 +82,7 @@ export function TaxesPanel({ taxes, onPay, onRefresh }: TaxesPanelProps) {
                 type="button"
                 onClick={() => handlePay(tax.id)}
                 disabled={paying === tax.id}
-                className="shrink-0 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
+                className="w-full sm:w-auto shrink-0 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
               >
                 {paying === tax.id ? "..." : "Payer"}
               </button>

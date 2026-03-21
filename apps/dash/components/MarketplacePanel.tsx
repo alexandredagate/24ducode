@@ -224,7 +224,7 @@ export function MarketplacePanel({
       {/* Créer une offre */}
       <div className="rounded-xl bg-zinc-800 border border-zinc-700 p-4">
         <h3 className="text-sm font-semibold text-zinc-200 mb-3">Créer une offre</h3>
-        <form onSubmit={handleCreate} className="flex flex-wrap gap-2 items-end">
+        <form onSubmit={handleCreate} className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:items-end">
           <div>
             <label htmlFor="create-resource" className="block text-xs text-zinc-500 mb-1">Ressource</label>
             <select
@@ -247,7 +247,7 @@ export function MarketplacePanel({
               onChange={(e) => setCreateQty(e.target.value)}
               placeholder="1000"
               min="1"
-              className="w-28 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white text-sm focus:outline-none focus:border-zinc-500"
+              className="w-full sm:w-28 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white text-sm focus:outline-none focus:border-zinc-500"
             />
           </div>
           <div>
@@ -260,13 +260,13 @@ export function MarketplacePanel({
               placeholder="2"
               min="0.01"
               step="0.01"
-              className="w-24 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white text-sm focus:outline-none focus:border-zinc-500"
+              className="w-full sm:w-24 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white text-sm focus:outline-none focus:border-zinc-500"
             />
           </div>
           <button
             type="submit"
             disabled={creating || !createQty || !createPrice}
-            className="px-4 py-2 rounded-lg bg-white text-zinc-950 font-semibold text-sm hover:bg-zinc-200 transition-colors disabled:opacity-40"
+            className="w-full sm:w-auto px-4 py-2 rounded-lg bg-white text-zinc-950 font-semibold text-sm hover:bg-zinc-200 transition-colors disabled:opacity-40"
           >
             {creating ? "..." : "Mettre en vente"}
           </button>
@@ -280,7 +280,7 @@ export function MarketplacePanel({
           {myOffers.map((offer) => (
             <div key={offer.id} className="rounded-xl bg-zinc-800 border border-zinc-700 overflow-hidden">
               {/* Ligne principale */}
-              <div className="p-4 flex items-start justify-between gap-4">
+              <div className="p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                 <div>
                   <span className={`text-sm font-bold ${RESOURCE_COLORS[offer.resourceType] ?? "text-zinc-200"}`}>
                     {offer.resourceType}
@@ -320,7 +320,7 @@ export function MarketplacePanel({
               {editing?.offerId === offer.id && (
                 <form
                   onSubmit={handleUpdate}
-                  className="border-t border-zinc-700 bg-zinc-900 px-4 py-3 flex flex-wrap gap-2 items-end"
+                  className="border-t border-zinc-700 bg-zinc-900 px-4 py-3 flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:items-end"
                 >
                   <div>
                     <label htmlFor={`edit-resource-${offer.id}`} className="block text-xs text-zinc-500 mb-1">Ressource</label>
@@ -343,7 +343,7 @@ export function MarketplacePanel({
                       min="1"
                       value={editing.qty}
                       onChange={(e) => setEditing((prev) => prev ? { ...prev, qty: e.target.value } : prev)}
-                      className="w-28 px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-zinc-500"
+                      className="w-full sm:w-28 px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-zinc-500"
                     />
                   </div>
                   <div>
@@ -355,13 +355,13 @@ export function MarketplacePanel({
                       step="0.01"
                       value={editing.price}
                       onChange={(e) => setEditing((prev) => prev ? { ...prev, price: e.target.value } : prev)}
-                      className="w-24 px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-zinc-500"
+                      className="w-full sm:w-24 px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-zinc-500"
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={updating || !editing.qty || !editing.price}
-                    className="px-4 py-1.5 rounded-lg bg-white text-zinc-950 font-semibold text-sm hover:bg-zinc-200 transition-colors disabled:opacity-40"
+                    className="w-full sm:w-auto px-4 py-1.5 rounded-lg bg-white text-zinc-950 font-semibold text-sm hover:bg-zinc-200 transition-colors disabled:opacity-40"
                   >
                     {updating ? "..." : "Enregistrer"}
                   </button>
@@ -388,7 +388,7 @@ export function MarketplacePanel({
               key={offer.id}
               className="rounded-xl bg-zinc-800 border border-zinc-700 p-4"
             >
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className={`text-sm font-bold ${RESOURCE_COLORS[offer.resourceType] ?? "text-zinc-200"}`}>
@@ -410,13 +410,13 @@ export function MarketplacePanel({
                     max={offer.quantityIn}
                     value={buyQty[offer.id] ?? offer.quantityIn}
                     onChange={(e) => setBuyQty((prev) => ({ ...prev, [offer.id]: Number.parseInt(e.target.value, 10) }))}
-                    className="w-24 px-2 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-white text-sm text-right focus:outline-none focus:border-zinc-500"
+                    className="flex-1 sm:flex-none w-full sm:w-24 px-2 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-white text-sm text-right focus:outline-none focus:border-zinc-500"
                   />
                   <button
                     type="button"
                     onClick={() => handleBuy(offer)}
                     disabled={buyingId === offer.id}
-                    className="px-4 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors disabled:opacity-40"
+                    className="shrink-0 px-4 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors disabled:opacity-40"
                   >
                     {buyingId === offer.id ? "..." : "Acheter"}
                   </button>
