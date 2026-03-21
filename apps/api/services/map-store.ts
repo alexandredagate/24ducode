@@ -108,20 +108,13 @@ export async function validateDiscoveries(): Promise<number> {
 export async function syncDiscoveryFromPlayerDetails(
   knownIslandNames: string[],
 ): Promise<number> {
-  // L'API ne donne pas les coordonnées des îles, juste les noms.
-  // On ne peut pas mapper nom → cellules. Mais on sait que quand une île
-  // est KNOWN dans l'API, toutes ses cellules devraient être KNOWN en DB.
-  //
-  // Approche pragmatique : si l'API dit que l'île est KNOWN, et que
-  // le joueur a déjà visité ces cellules (elles sont en DB), on les marque.
-  // Comme on ne peut pas mapper par nom, on marque TOUTES les cellules SAND
-  // sans discoveryStatus ou en DISCOVERED comme KNOWN, puisque le jeu
-  // nous dit qu'elles le sont.
-  //
-  // Note : on ne touche que les cellules qui sont déjà en DB (déjà vues).
+  // Marque KNOWN uniquement les cellules SAND qui n'ont PAS encore de
+  // discoveryStatus (anciennes cellules d'avant la feature).
+  // Les cellules explicitement "DISCOVERED" restent DISCOVERED — seul
+  // validateDiscoveries() (retour sur île KNOWN) les fait passer KNOWN.
   const col = getDb().collection(COLLECTION);
   const result = await col.updateMany(
-    { type: "SAND", discoveryStatus: { $ne: "KNOWN" } },
+    { type: "SAND", discoveryStatus: { $exists: false } },
     { $set: { discoveryStatus: "KNOWN" } },
   );
   return result.modifiedCount;
