@@ -670,9 +670,9 @@ Lancer un vol sur le joueur le plus riche en la ressource ciblee.
 ### `map:grid`
 
 Recupere la carte complete sous forme de grille :
-- `0` = mer (SEA)
-- `1` = terre (SAND)
-- ` ` (espace) = zone inconnue
+- `0` = vide / inconnu
+- `1` = mer (SEA)
+- `2` = terre (SAND)
 
 **Requete :**
 ```json
@@ -685,7 +685,7 @@ Recupere la carte complete sous forme de grille :
   "command": "map:grid",
   "status": "ok",
   "data": {
-    "grid": ["  000  ", " 00100 ", "0011100", " 00100 ", "  000  "],
+    "grid": ["0011100", "0112210", "1122211", "0112210", "0011100"],
     "minX": -3, "maxX": 3,
     "minY": -2, "maxY": 2,
     "width": 7, "height": 5
@@ -708,7 +708,7 @@ Emis a **tous les clients connectes** apres chaque `ship:move` reussi.
   "command": "map:update",
   "status": "ok",
   "data": {
-    "grid": ["00000", "00110", "00100"],
+    "grid": ["11111", "11221", "11211"],
     "minX": -2, "maxX": 2,
     "minY": -1, "maxY": 1,
     "width": 5, "height": 3

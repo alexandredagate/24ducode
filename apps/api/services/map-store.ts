@@ -45,15 +45,15 @@ export async function getMapGrid(): Promise<MapGrid> {
   const width = maxX - minX + 1;
   const height = maxY - minY + 1;
 
-  // Build grid filled with spaces (unknown)
+  // Build grid filled with 0 (unknown)
   const rows: string[][] = Array.from({ length: height }, () =>
-    Array.from({ length: width }, () => " ")
+    Array.from({ length: width }, () => "0")
   );
 
   for (const c of cells) {
     const row = c.y - minY;
     const col = c.x - minX;
-    rows[row][col] = c.type === "SEA" ? "0" : "1";
+    rows[row][col] = c.type === "SEA" ? "1" : "2";
   }
 
   const grid = rows.map((r) => r.join(""));
