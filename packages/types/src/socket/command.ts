@@ -2,6 +2,7 @@ export type CommandName =
   // Auth
   | "auth:login"
   | "auth:logout"
+  | "auth:refresh"
   // Player
   | "player:details"
   | "player:resources"

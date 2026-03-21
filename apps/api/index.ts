@@ -1,12 +1,21 @@
+import "dotenv/config";
+import { createServer } from "http";
 import express from "express";
+import { createSocketServer } from "./socket";
+
+const PORT = Number(process.env.PORT) || 3001;
 
 const app = express();
-const port = process.env.PORT || 3001;
+app.use(express.json());
 
-app.get("/", (_req, res) => {
-  res.json({ message: "Hello World!" });
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", ts: new Date().toISOString() });
 });
 
-app.listen(port, () => {
-  console.log(`API running on http://localhost:${port}`);
+const httpServer = createServer(app);
+createSocketServer(httpServer);
+
+httpServer.listen(PORT, () => {
+  console.log(`[api] listening on http://localhost:${PORT}`);
+  console.log(`[api] socket.io ready`);
 });
