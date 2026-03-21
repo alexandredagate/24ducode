@@ -19,8 +19,6 @@ services:
       - /app/apps/dash/.next
     depends_on:
       - api
-    networks:
-      - ek24_net
 
   # Game Vite + WebGL
   game:
@@ -33,11 +31,9 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
-    networks:
-      - ek24_net
 
-  # API Python FastAPI
-  api:
+  # Agent Python FastAPI
+  agent:
     build:
       context: apps/agent
       dockerfile: Dockerfile
@@ -46,32 +42,5 @@ services:
       - "8000:8000"
     environment:
       - ENV=development
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/ek24_db
     volumes:
-      - ./apps/api:/app
-    depends_on:
-      - db
-    networks:
-      - ek24_net
-
-  # PostgreSQL
-  db:
-    image: postgres:16-alpine
-    container_name: ek24_db
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=ek24_db
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - ek24_net
-
-volumes:
-  postgres_data:
-
-networks:
-  ek24_net:
-    driver: bridge
+      - ./apps/agent:/app
