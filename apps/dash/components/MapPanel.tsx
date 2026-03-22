@@ -137,13 +137,11 @@ export function MapPanel({ mapGrid, shipPosition, onRefresh }: MapPanelProps) {
             {/* Hover info */}
             <div className="px-4 py-2 flex items-center justify-between text-xs" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", minHeight: 36 }}>
               {hoveredCell ? (
-                <>
                   <span className="text-zinc-400">
                     <span className="font-mono text-cyan-400">({hoveredCell.x}, {hoveredCell.y})</span>
                     <span className="text-zinc-600 ml-2">{CELL_LABELS[hoveredCell.type] ?? "?"}</span>
                     {hoveredCell.zone > 0 && <span className="ml-2" style={{ color: ZONE_SAND_COLORS[hoveredCell.zone] }}>Zone {hoveredCell.zone}</span>}
                   </span>
-                </>
               ) : (
                 <span className="text-zinc-600">Survolez la carte</span>
               )}
@@ -171,6 +169,7 @@ export function MapPanel({ mapGrid, shipPosition, onRefresh }: MapPanelProps) {
                     const isShip = shipPosition && shipPosition.x === x && shipPosition.y === y;
 
                     return (
+                      // biome-ignore lint/a11y/noStaticElementInteractions: visual-only map cell, hover shows coordinates
                       <div
                         key={`${x},${y}`}
                         onMouseEnter={() => setHoveredCell({ x, y, type: cell, zone })}
@@ -234,31 +233,14 @@ export function MapPanel({ mapGrid, shipPosition, onRefresh }: MapPanelProps) {
           {stats && (
             <div className="card card-accent-cyan p-4">
               <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Exploration</h3>
-              <div className="text-center mb-4">
-                <div className="text-4xl font-black font-mono" style={{ color: "#00e5ff", textShadow: "0 0 20px rgba(0,229,255,0.3)" }}>
-                  {stats.exploredPct}%
-                </div>
-                <div className="text-[11px] text-zinc-500 mt-0.5">de la carte exploree</div>
-              </div>
-              <div className="energy-gauge mb-4" style={{ height: 8 }}>
-                <div className="energy-gauge-fill bg-cyan-500 progress-scan" style={{ width: `${stats.exploredPct}%` }} />
-              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="stat-pill">
-                  <div className="text-[10px] text-zinc-500">Total</div>
-                  <div className="text-sm font-bold text-white font-mono">{stats.total.toLocaleString()}</div>
-                </div>
-                <div className="stat-pill">
-                  <div className="text-[10px] text-zinc-500">Explore</div>
+                  <div className="text-[10px] text-zinc-500">Pixels explorés</div>
                   <div className="text-sm font-bold font-mono" style={{ color: "#00e5ff" }}>{stats.explored.toLocaleString()}</div>
                 </div>
                 <div className="stat-pill">
-                  <div className="text-[10px] text-zinc-500">Iles</div>
+                  <div className="text-[10px] text-zinc-500">Pixels avec une île</div>
                   <div className="text-sm font-bold text-emerald-400 font-mono">{stats.known}</div>
-                </div>
-                <div className="stat-pill">
-                  <div className="text-[10px] text-zinc-500">Inconnu</div>
-                  <div className="text-sm font-bold text-zinc-500 font-mono">{stats.unknown.toLocaleString()}</div>
                 </div>
               </div>
             </div>
