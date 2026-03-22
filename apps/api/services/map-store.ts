@@ -4,6 +4,14 @@ import type { Cell, CellNote, DiscoveryStatus } from "types";
 const COLLECTION = "cells";
 const SHIP_POSITION_COLLECTION = "ship_position";
 
+// ─── MapGrid cache ──────────────────────────────────────────────────
+// Invalidé à chaque mutation (upsertCells, validateDiscoveries, etc.)
+let _gridCache: MapGrid | null = null;
+
+export function invalidateGridCache(): void {
+  _gridCache = null;
+}
+
 /** Known special locations: coordinate key "x,y" → note */
 const KNOWN_NOTES = new Map<string, CellNote>([
   ["5,3", "HOME"],
@@ -23,6 +31,7 @@ const CONFIRMED_REFUEL_COLLECTION = "confirmed_refuel";
 export async function markConfirmedRefuel(x: number, y: number): Promise<void> {
   const col = getDb().collection(CONFIRMED_REFUEL_COLLECTION);
   await col.updateOne({ x, y }, { $set: { x, y, confirmedAt: new Date() } }, { upsert: true });
+  invalidateGridCache();
 }
 
 export async function getConfirmedRefuelCoords(): Promise<{ x: number; y: number }[]> {
@@ -94,6 +103,7 @@ export async function upsertCells(cells: Cell[]): Promise<void> {
     };
   });
   await col.bulkWrite(ops);
+  invalidateGridCache();
 }
 
 // ─── Discovery validation ───────────────────────────────────────────
@@ -109,6 +119,7 @@ export async function validateDiscoveries(): Promise<number> {
     { type: "SAND", discoveryStatus: "DISCOVERED" },
     { $set: { discoveryStatus: "KNOWN" } },
   );
+  if (result.modifiedCount > 0) invalidateGridCache();
   return result.modifiedCount;
 }
 
@@ -136,6 +147,7 @@ export async function syncDiscoveryFromPlayerDetails(
     { type: "SAND", discoveryStatus: { $exists: false } },
     { $set: { discoveryStatus: "KNOWN" } },
   );
+  if (result.modifiedCount > 0) invalidateGridCache();
   return result.modifiedCount;
 }
 
@@ -159,6 +171,7 @@ export async function resetDiscoveryStatus(): Promise<{ reset: number; home: num
     );
     homeCount += r.modifiedCount;
   }
+  invalidateGridCache();
   return { reset: resetResult.modifiedCount, home: homeCount };
 }
 
@@ -167,6 +180,7 @@ export async function resetDiscoveryStatus(): Promise<{ reset: number; home: num
 export async function setCellNote(x: number, y: number, note: CellNote): Promise<void> {
   const col = getDb().collection(COLLECTION);
   await col.updateOne({ x, y }, { $set: { note } });
+  invalidateGridCache();
 }
 
 export async function getCellAt(x: number, y: number): Promise<Cell | null> {
@@ -210,6 +224,8 @@ export interface MapGrid {
 }
 
 export async function getMapGrid(): Promise<MapGrid> {
+  if (_gridCache) return _gridCache;
+
   const col = getDb().collection(COLLECTION);
   const cells = await col.find({}).toArray();
 
@@ -258,5 +274,7 @@ export async function getMapGrid(): Promise<MapGrid> {
 
   const confirmedRefuel = await getConfirmedRefuelCoords();
 
-  return { grid, minX, maxX, minY, maxY, width, height, notes, islands, confirmedRefuel };
+  const result = { grid, minX, maxX, minY, maxY, width, height, notes, islands, confirmedRefuel };
+  _gridCache = result;
+  return result;
 }
