@@ -40,7 +40,7 @@ export function TheftPanel({ thefts, playerMoney, onAttack, onRefresh }: TheftPa
 
   const stats = useMemo(() => {
     const successes = thefts.filter(t => t.status === "SUCCESS");
-    const failures = thefts.filter(t => t.status === "FAILURE");
+    const failures = thefts.filter(t => t.status !== "PENDING" && t.status !== "SUCCESS");
     const totalInvested = thefts.reduce((s, t) => s + t.moneySpent, 0);
     const winRate = (successes.length + failures.length) > 0
       ? Math.round((successes.length / (successes.length + failures.length)) * 100)
