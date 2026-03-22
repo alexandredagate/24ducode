@@ -741,17 +741,10 @@ class ExplorerAgent(BaseAgent):
                     if tx is not None and ty is not None:
                         logger.info("🎯 Ordre repris après refuel → (%s,%s)", tx, ty)
                         self._set_path_to({"x": tx, "y": ty}, "order")
-                # Si un sweep était en pause → reprendre à la position sauvée
-                elif self._sweep_resume_pos:
-                    rp = self._sweep_resume_pos
+                else:
+                    # Après refuel → explorer depuis la position actuelle (nearest frontier)
+                    self._sweep_dir = ""
                     self._sweep_resume_pos = None
-                    dist = _distance(ix, iy, rp["x"], rp["y"], self._zone)
-                    if dist <= 25:  # raisonnable
-                        logger.info("📌 Reprise sweep → (%s,%s) dist=%s", rp["x"], rp["y"], dist)
-                        self._set_path_to(rp, "sweep_resume")
-                    else:
-                        logger.info("📌 Position de reprise trop loin (%s) — nouveau sweep (nearest frontier)", dist)
-                        self._sweep_dir = ""  # force nouveau sweep → _start_sweep cherchera la frontière la plus proche
 
             # Economy tick
             if self._island_visits % ECONOMY_TICK_EVERY == 0:
@@ -986,6 +979,12 @@ class ExplorerAgent(BaseAgent):
             tx, ty, order["id"],
         )
 
+        # ── INTERROMPRE tout ce qui est en cours ──
+        self._path.clear()
+        self._path_reason = ""
+        self._sweep_dir = ""
+        self._sweep_resume_pos = None
+
         # Mettre l'ordre en IN_PROGRESS
         dist = _distance(self._pos["x"], self._pos["y"], tx, ty, self._zone) if self._pos else 0
         await self._send("capitain:progress", {
@@ -1041,6 +1040,9 @@ class ExplorerAgent(BaseAgent):
             self._current_order = None
             self._path.clear()
             self._path_reason = ""
+            # Explorer depuis la position actuelle (pas de retour en arrière)
+            self._sweep_dir = ""
+            self._sweep_resume_pos = None
             return
 
         # Progrès périodique (toutes les 5 moves)
