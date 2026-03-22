@@ -227,8 +227,10 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
     }
 
     const extent = viewRadius + 2;
+    const extent2 = extent * extent;
     for (let dr = -extent; dr <= extent; dr++) {
       for (let dc = -extent; dc <= extent; dc++) {
+        if (dr * dr + dc * dc > extent2) continue;
         const r = centerR + dr;
         const c = centerC + dc;
         if (isVoidAt(r, c)) addVoidTile(r, c);

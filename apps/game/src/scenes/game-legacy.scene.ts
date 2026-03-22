@@ -111,7 +111,7 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
 
     const initialMeta: MapMeta = { minX: gridData.minX, maxX: gridData.maxX, minY: gridData.minY, maxY: gridData.maxY };
     const initialConfirmed = buildConfirmedSet(gridData.confirmedRefuel, initialMeta);
-    const VIEW_RADIUS = 8; // 16x16 circular viewport
+    const VIEW_RADIUS = 12; // 24x24 circular viewport
     let fullMap = map; // keep the full unclipped map for re-clipping
     // Initial map with center clip — will be re-clipped once boat position is known
     const defaultClip = clipMapToCircle(map, Math.floor(map.rows / 2), Math.floor(map.cols / 2), VIEW_RADIUS);
