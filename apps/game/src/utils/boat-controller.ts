@@ -7,6 +7,19 @@ import { createEmojiBillboard, computeEmojiScale } from "./emoji-billboard";
 
 const TILE_SIZE = 1.0;
 const MOVE_SPEED = 2.5;
+
+const ROMAN_NUMERALS: [number, string][] = [
+  [1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],
+  [100,'C'],[90,'XC'],[50,'L'],[40,'XL'],
+  [10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I'],
+];
+function toRoman(n: number): string {
+  let result = '';
+  for (const [value, numeral] of ROMAN_NUMERALS) {
+    while (n >= value) { result += numeral; n -= value; }
+  }
+  return result;
+}
 const ROTATION_SPEED = 8.0;
 const BOAT_Y_OFFSET = 0.38;
 const MODEL_ROTATION_OFFSET = 0;
@@ -280,7 +293,7 @@ export function createBoatController(
     } else {
       gaugeText.textContent = '';
     }
-    zonePanel.label.textContent = currentZone >= 0 ? `Zone ${currentZone}` : 'Zone —';
+    zonePanel.label.textContent = currentZone >= 0 ? `Zone ${toRoman(currentZone)}` : 'Zone —';
     if (mapMeta) {
       const server = gridToServer(gridRow, gridCol, mapMeta);
       posPanel.label.textContent = `x: ${server.x}  y: ${server.y}`;
