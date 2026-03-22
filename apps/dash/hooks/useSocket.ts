@@ -72,6 +72,20 @@ export interface MapGrid {
   height: number;
 }
 
+export type TheftChance = "FAIBLE" | "MOYENNE" | "FORTE";
+export type TheftStatus = "PENDING" | "SUCCESS" | "FAILURE";
+
+export interface Theft {
+  id: string;
+  resourceType: ResourceType;
+  amountAttempted: number;
+  moneySpent: number;
+  createdAt: string;
+  resolveAt: string;
+  status: string;
+  chance: TheftChance;
+}
+
 export interface BrokerEvent {
   id: number;
   receivedAt: string;
@@ -103,6 +117,7 @@ interface UseSocketReturn {
   availableMove: number | null;
   taxes: Tax[];
   marketOffers: MarketOffer[];
+  thefts: Theft[];
   storageInfo: StorageInfo | null;
   mapGrid: MapGrid | null;
   refreshMapGrid: () => Promise<void>;
@@ -129,6 +144,7 @@ export function useSocket(): UseSocketReturn {
   const [marketOffers, setMarketOffers] = useState<MarketOffer[]>([]);
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
   const [mapGrid, setMapGrid] = useState<MapGrid | null>(null);
+  const [thefts, setThefts] = useState<Theft[]>([]);
   const [brokerEvents, setBrokerEvents] = useState<BrokerEvent[]>([]);
   const brokerIdRef = useRef(0);
   const [lastError, setLastError] = useState<string | null>(null);
@@ -269,6 +285,13 @@ export function useSocket(): UseSocketReturn {
       setMapGrid(data);
     } catch {}
   }, [emit]);
+  
+  const refreshThefts = useCallback(async () => {
+    try {
+      const data = await emit<Theft[]>("theft:list");
+      setThefts(data ?? []);
+    } catch {}
+  }, [emit]);
 
   const refreshShipLocation = useCallback(async () => {
     try {
@@ -291,7 +314,9 @@ export function useSocket(): UseSocketReturn {
     await refreshMarketOffers();
     await refreshStorageInfo();
     await refreshMapGrid();
-  }, [refreshPlayerDetails, refreshShipNextLevel, refreshShipLocation, refreshTaxes, refreshMarketOffers, refreshStorageInfo, refreshMapGrid]);
+    await refreshThefts();
+
+  }, [refreshPlayerDetails, refreshShipNextLevel, refreshShipLocation, refreshTaxes, refreshMarketOffers, refreshStorageInfo, refreshMapGrid, refreshThefts]);
 
   // Refs stables pour les fonctions de refresh utilisées dans useEffect
   const refreshShipNextLevelRef = useRef(refreshShipNextLevel);
@@ -468,6 +493,7 @@ export function useSocket(): UseSocketReturn {
     setAvailableMove(null);
     setTaxes([]);
     setMarketOffers([]);
+    setThefts([]);
     setStorageInfo(null);
     setMapGrid(null);
     setBrokerEvents([]);
@@ -489,6 +515,7 @@ export function useSocket(): UseSocketReturn {
     availableMove,
     taxes,
     marketOffers,
+    thefts,
     brokerEvents,
     clearBrokerEvents: useCallback(() => setBrokerEvents([]), []),
     storageInfo,

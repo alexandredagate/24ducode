@@ -8,16 +8,18 @@ import { MarketplacePanel } from "../components/MarketplacePanel";
 import { PlayerCard } from "../components/PlayerCard";
 import { ShipPanel } from "../components/ShipPanel";
 import { TaxesPanel } from "../components/TaxesPanel";
+import { TheftPanel } from "../components/TheftPanel";
 import { useSocket } from "../hooks/useSocket";
 import type { Direction, ResourceType } from "../hooks/useSocket";
 
-type Tab = "overview" | "ship" | "map" | "marketplace" | "taxes" | "events";
+type Tab = "overview" | "ship" | "map" | "marketplace" | "taxes" | "thefts" | "events";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Vue globale" },
   { id: "ship", label: "Bateau" },
   { id: "map", label: "Carte" },
   { id: "marketplace", label: "Marketplace" },
+  { id: "thefts", label: "Piraterie" },
   { id: "taxes", label: "Taxes" },
   { id: "events", label: "Events" },
 ];
@@ -37,6 +39,7 @@ export default function Home() {
     availableMove,
     taxes,
     marketOffers,
+    thefts,
     storageInfo,
     mapGrid,
     refreshMapGrid,
@@ -111,11 +114,18 @@ export default function Home() {
     return result;
   }
 
+  async function handleTheftAttack(resourceType: ResourceType, moneySpent: number) {
+    const result = await emit("theft:attack", { resourceType, moneySpent });
+    refreshAll();
+    return result;
+  }
+
   if (!authenticated) {
     return <LoginForm onLogin={login} connected={connected} error={lastError} />;
   }
 
   const dueTaxesCount = taxes.filter((t) => t.state === "DUE").length;
+  const pendingTheftsCount = thefts.filter((t) => t.status === "PENDING").length;
 
   const shipPanelProps = {
     shipNextLevel,
@@ -199,6 +209,11 @@ export default function Home() {
                   {dueTaxesCount}
                 </span>
               )}
+              {tab.id === "thefts" && pendingTheftsCount > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-500 text-white text-xs font-bold">
+                  {pendingTheftsCount}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -250,6 +265,15 @@ export default function Home() {
             onDeleteOffer={handleDeleteOffer}
             onRefresh={refreshAll}
             marketplaceDiscovered={playerDetails?.marketPlaceDiscovered ?? false}
+          />
+        )}
+
+        {activeTab === "thefts" && (
+          <TheftPanel
+            thefts={thefts}
+            playerMoney={playerDetails?.money ?? 0}
+            onAttack={handleTheftAttack}
+            onRefresh={refreshAll}
           />
         )}
 
