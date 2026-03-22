@@ -318,8 +318,11 @@ export function useSocket(): UseSocketReturn {
   const refreshStorageInfo = useCallback(async () => {
     try {
       const data = await emit<StorageInfo>("storage:next-level");
+      console.log("[storage:next-level] response:", data);
       setStorageInfo(data);
-    } catch {}
+    } catch (err) {
+      console.error("[storage:next-level] error:", err);
+    }
   }, [emit]);
 
   const refreshMapGrid = useCallback(async () => {

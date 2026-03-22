@@ -84,7 +84,7 @@ export function PlayerCard({ player, storage, onUpgradeStorage }: PlayerCardProp
 
       {/* Storage upgrade */}
       <div className="card overflow-hidden xl:order-5">
-        {storage && resourceMap ? (
+        {storage && resourceMap && costEntries.length > 0 ? (
           <>
             <div className="px-5 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
               <div className="flex items-center justify-between">
@@ -133,9 +133,25 @@ export function PlayerCard({ player, storage, onUpgradeStorage }: PlayerCardProp
             </div>
           </>
         ) : (
-          <div className="p-5 text-center">
-            <div className="text-sm font-semibold text-zinc-300 mb-1">Entrepot</div>
-            <p className="text-zinc-600 text-xs">Chargement...</p>
+          <div className="p-5 relative overflow-hidden">
+            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(251,191,36,0.08) 0%, transparent 70%)" }} />
+            <div className="relative flex flex-col items-center justify-center text-center gap-3 min-h-32">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full blur-md" style={{ background: "rgba(251,191,36,0.3)" }} />
+                <div className="relative w-14 h-14 rounded-full flex items-center justify-center text-2xl" style={{ background: "linear-gradient(135deg, rgba(251,191,36,0.2) 0%, rgba(245,158,11,0.1) 100%)", border: "1px solid rgba(251,191,36,0.35)" }}>
+                  👑
+                </div>
+              </div>
+              <div>
+                <p className="text-amber-300 font-semibold text-sm tracking-wide">Niveau Maximum</p>
+                <p className="text-zinc-500 text-xs mt-0.5">Votre entrepot a atteint son plein potentiel</p>
+              </div>
+              <div className="w-full flex items-center gap-2 mt-1">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex-1 h-1.5 rounded-full animate-pulse" style={{ background: "linear-gradient(90deg, rgba(251,191,36,0.7), rgba(245,158,11,0.4))", animationDelay: `${i * 150}ms` }} />
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
