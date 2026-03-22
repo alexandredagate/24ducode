@@ -792,6 +792,10 @@ class ExplorerAgent(BaseAgent):
     async def _on_error(self, error: str) -> None:
         logger.warning("⚠️ ERREUR: %s", error)
 
+        if "TOO_FAST" in error:
+            await asyncio.sleep(settings.move_interval)
+            return
+
         if "GAME_OVER_INSERT_COINS" in error or "amende" in error.lower():
             if settings.auto_pay_fines:
                 await self._handle_fine()

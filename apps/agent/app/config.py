@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     enable_diagonal: bool = True
     auto_pay_fines: bool = True
     agent_version: str = "v2"
-    move_interval: float = 0.1  # intervalle min entre moves (le serveur gère le rate limit)
+    move_interval: float = 0.6  # intervalle min entre moves (rate limit API = 500ms + marge)
 
 
 settings = Settings()
