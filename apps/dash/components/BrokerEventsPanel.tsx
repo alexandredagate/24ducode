@@ -11,6 +11,14 @@ const TYPE_COLORS: Record<string, string> = {
   ISLAND_DISCOVERED: "text-cyan-400",
 };
 
+const TYPE_GLOWS: Record<string, string> = {
+  OFFER_CREATED: "glow-emerald",
+  OFFER_DELETED: "glow-red",
+  OFFER_UPDATED: "glow-yellow",
+  THEFT_RESOLVED: "glow-orange",
+  ISLAND_DISCOVERED: "glow-cyan",
+};
+
 export function BrokerEventsPanel({
   events,
   onClear,
@@ -27,7 +35,7 @@ export function BrokerEventsPanel({
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <h2 className="text-lg font-semibold">
+        <h2 className="text-lg font-semibold section-header">
           Broker Events
           <span className="ml-2 text-sm text-zinc-500 font-normal">
             ({events.length} reçus)
@@ -37,7 +45,7 @@ export function BrokerEventsPanel({
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-300"
+            className="rounded-lg px-2 py-1.5 text-xs input-gaming"
           >
             <option value="">Tous les types</option>
             {types.map((t) => (
@@ -49,7 +57,7 @@ export function BrokerEventsPanel({
           <button
             type="button"
             onClick={onClear}
-            className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs transition-colors"
+            className="px-3 py-1.5 rounded-lg glass hover:border-glow-red text-zinc-400 hover:text-red-400 text-xs transition-all"
           >
             Vider
           </button>
@@ -57,7 +65,7 @@ export function BrokerEventsPanel({
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-xl bg-zinc-800 border border-zinc-700 p-8 text-center text-zinc-500 text-sm">
+        <div className="rounded-xl glass p-8 text-center text-zinc-500 text-sm">
           Aucun événement reçu pour le moment. Les événements du broker apparaîtront ici en temps réel.
         </div>
       ) : (
@@ -66,13 +74,14 @@ export function BrokerEventsPanel({
             const isExpanded = expandedId === event.id;
             const time = new Date(event.receivedAt).toLocaleTimeString("fr-FR");
             const colorClass = TYPE_COLORS[event.type] ?? "text-zinc-300";
+            const glowClass = TYPE_GLOWS[event.type] ?? "";
 
             return (
               <button
                 key={event.id}
                 type="button"
                 onClick={() => setExpandedId(isExpanded ? null : event.id)}
-                className="w-full text-left rounded-lg bg-zinc-800 border border-zinc-700 hover:border-zinc-600 transition-colors"
+                className={`w-full text-left rounded-lg glass transition-all hover:bg-white/5 ${isExpanded ? glowClass : ""}`}
               >
                 <div className="flex items-center gap-3 px-4 py-2.5">
                   <span className="text-xs text-zinc-500 font-mono w-16 sm:w-20 shrink-0">
@@ -82,11 +91,11 @@ export function BrokerEventsPanel({
                     {event.type}
                   </span>
                   <span className="ml-auto text-zinc-600 text-xs">
-                    {isExpanded ? "▲" : "▼"}
+                    {isExpanded ? "\u25B2" : "\u25BC"}
                   </span>
                 </div>
                 {isExpanded && (
-                  <pre className="px-4 pb-3 text-xs text-zinc-400 overflow-x-auto whitespace-pre-wrap break-all">
+                  <pre className="px-4 pb-3 text-xs text-cyan-300/70 overflow-x-auto whitespace-pre-wrap break-all font-mono">
                     {JSON.stringify(event.data, null, 2)}
                   </pre>
                 )}

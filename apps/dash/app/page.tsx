@@ -67,25 +67,24 @@ export default function Home() {
       "ship:move",
       { direction }
     );
-    // map:update + ship:position broadcasts gèrent la mise à jour
   }
 
   async function handleShipBuild() {
     const result = await emit("ship:build");
-    refreshAll(); // Pas de broadcast pour build, refresh nécessaire
+    refreshAll();
     return result;
   }
 
   async function handleShipUpgrade() {
     if (!shipNextLevel?.level) return;
     const result = await emit("ship:upgrade", { level: shipNextLevel.level.id });
-    refreshAll(); // Pas de broadcast pour upgrade, refresh nécessaire
+    refreshAll();
     return result;
   }
 
   async function handleUpgradeStorage() {
     await emit("storage:upgrade");
-    refreshAll(); // Pas de broadcast pour storage, refresh nécessaire
+    refreshAll();
   }
 
   async function handleTaxPay(taxId: string) {
@@ -150,11 +149,12 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
-      <header className="border-b border-zinc-800 bg-zinc-900 px-4 sm:px-6 py-3">
+    <div className="min-h-screen text-white flex flex-col cyber-grid-bg" style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(0,240,255,0.04) 0%, var(--background) 60%)" }}>
+      {/* Header */}
+      <header className="glass-strong border-b border-glow-cyan px-4 sm:px-6 py-3 sticky top-0 z-50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl font-bold tracking-tight">3026</span>
+            <span className="text-xl font-bold tracking-tight" style={{ textShadow: "0 0 15px rgba(0,240,255,0.4)" }}>3026</span>
             {playerDetails && (
               <span className="text-zinc-500 text-sm hidden sm:inline">· {playerDetails.name}</span>
             )}
@@ -162,30 +162,34 @@ export default function Home() {
           <div className="flex items-center gap-2 sm:gap-3">
             {playerDetails && (
               <div className="hidden sm:flex items-center gap-4 text-sm">
-                <span className="text-yellow-400 font-semibold">
+                <span className="text-yellow-400 font-semibold animate-glow-pulse">
                   {playerDetails.money.toLocaleString()} OR
                 </span>
                 <span className="text-zinc-500">Quotient : {playerDetails.quotient}</span>
+                <span className="text-emerald-400">{playerDetails.discoveredIslands.filter(i => i.islandState === "KNOWN").length} îles</span>
               </div>
             )}
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-400" : "bg-red-500"}`} />
+              <div
+                className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-400" : "bg-red-500"}`}
+                style={{ boxShadow: connected ? "0 0 8px rgba(52,211,153,0.6)" : "0 0 8px rgba(239,68,68,0.6)" }}
+              />
               <span className="text-xs text-zinc-500 hidden sm:inline">{connected ? "Connecté" : "Déconnecté"}</span>
             </div>
             <button
               type="button"
               onClick={handleRefresh}
               disabled={refreshing}
-              className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition-colors disabled:opacity-40"
+              className={`px-3 py-1.5 rounded-lg glass text-zinc-300 text-xs transition-all hover:border-glow-cyan ${refreshing ? "animate-spin" : ""} disabled:opacity-40`}
             >
-              {refreshing ? "↻" : "↻"}
+              &#8635;
             </button>
             <button
               type="button"
               onClick={logout}
-              className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs transition-colors"
+              className="px-3 py-1.5 rounded-lg glass text-zinc-400 text-xs transition-all hover:border-glow-red hover:text-red-400"
             >
-              <span className="sm:hidden">✕</span>
+              <span className="sm:hidden">&#10005;</span>
               <span className="hidden sm:inline">Déconnexion</span>
             </button>
           </div>
@@ -196,31 +200,33 @@ export default function Home() {
               {playerDetails.money.toLocaleString()} OR
             </span>
             <span className="text-zinc-500">Q: {playerDetails.quotient}</span>
+            <span className="text-emerald-400">{playerDetails.discoveredIslands.filter(i => i.islandState === "KNOWN").length} îles</span>
           </div>
         )}
       </header>
 
-      <nav className="border-b border-zinc-800 bg-zinc-900 px-4 sm:px-6 overflow-x-auto">
+      {/* Navigation */}
+      <nav className="glass border-b border-glow-cyan px-4 sm:px-6 overflow-x-auto">
         <div className="flex gap-1 min-w-max">
           {TABS.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`relative px-4 py-3 text-sm font-medium transition-colors ${
+              className={`relative px-4 py-3 text-sm font-medium transition-all ${
                 activeTab === tab.id
-                  ? "text-white border-b-2 border-white"
+                  ? "tab-active"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
               {tab.label}
               {tab.id === "taxes" && dueTaxesCount > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-xs font-bold">
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-xs font-bold" style={{ boxShadow: "0 0 8px rgba(239,68,68,0.5)" }}>
                   {dueTaxesCount}
                 </span>
               )}
               {tab.id === "thefts" && pendingTheftsCount > 0 && (
-                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-500 text-white text-xs font-bold">
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-500 text-white text-xs font-bold" style={{ boxShadow: "0 0 8px rgba(168,85,247,0.5)" }}>
                   {pendingTheftsCount}
                 </span>
               )}
@@ -229,76 +235,83 @@ export default function Home() {
         </div>
       </nav>
 
-      <main className="flex-1 p-4 sm:p-6 max-w-4xl mx-auto w-full">
+      {/* Main content */}
+      <main className={`flex-1 p-4 sm:p-6 mx-auto w-full ${activeTab === "overview" || activeTab === "ship" || activeTab === "marketplace" ? "" : "max-w-4xl"}`}>
         {activeTab === "overview" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div>
-              {playerDetails ? (
-                <PlayerCard
-                  player={playerDetails}
-                  storage={storageInfo}
-                  onUpgradeStorage={handleUpgradeStorage}
-                />
-              ) : (
-                <div className="rounded-xl bg-zinc-800 border border-zinc-700 p-6 text-center text-zinc-400 text-sm">
-                  Chargement des données joueur...
-                </div>
-              )}
-            </div>
-            <div>
-              <ShipPanel {...shipPanelProps} />
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-fade-in-up">
+            {playerDetails ? (
+              <PlayerCard
+                player={playerDetails}
+                storage={storageInfo}
+                onUpgradeStorage={handleUpgradeStorage}
+              />
+            ) : (
+              <div className="rounded-xl glass p-6 text-center text-zinc-400 text-sm">
+                Chargement des données joueur...
+              </div>
+            )}
+            <ShipPanel {...shipPanelProps} />
           </div>
         )}
 
         {activeTab === "ship" && (
-          <div className="max-w-md mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 animate-fade-in-up">
             <ShipPanel {...shipPanelProps} />
           </div>
         )}
 
         {activeTab === "agent" && (
-          <div className="max-w-xl mx-auto">
+          <div className="max-w-xl mx-auto animate-fade-in-up">
             <AgentPanel botStatus={botStatus} capitainStatus={capitainStatus} emit={emit} />
           </div>
         )}
 
         {activeTab === "map" && (
-          <MapPanel
-            mapGrid={mapGrid}
-            shipPosition={currentPosition ? { x: currentPosition.x, y: currentPosition.y } : null}
-            onRefresh={refreshMapGrid}
-          />
+          <div className="animate-fade-in-up">
+            <MapPanel
+              mapGrid={mapGrid}
+              shipPosition={currentPosition ? { x: currentPosition.x, y: currentPosition.y } : null}
+              onRefresh={refreshMapGrid}
+            />
+          </div>
         )}
 
         {activeTab === "marketplace" && (
-          <MarketplacePanel
-            offers={marketOffers}
-            playerName={playerDetails?.name ?? ""}
-            onPurchase={handlePurchase}
-            onCreateOffer={handleCreateOffer}
-            onUpdateOffer={handleUpdateOffer}
-            onDeleteOffer={handleDeleteOffer}
-            onRefresh={refreshAll}
-            marketplaceDiscovered={playerDetails?.marketPlaceDiscovered ?? false}
-          />
+          <div className="animate-fade-in-up">
+            <MarketplacePanel
+              offers={marketOffers}
+              playerName={playerDetails?.name ?? ""}
+              onPurchase={handlePurchase}
+              onCreateOffer={handleCreateOffer}
+              onUpdateOffer={handleUpdateOffer}
+              onDeleteOffer={handleDeleteOffer}
+              onRefresh={refreshAll}
+              marketplaceDiscovered={playerDetails?.marketPlaceDiscovered ?? false}
+            />
+          </div>
         )}
 
         {activeTab === "thefts" && (
-          <TheftPanel
-            thefts={thefts}
-            playerMoney={playerDetails?.money ?? 0}
-            onAttack={handleTheftAttack}
-            onRefresh={refreshAll}
-          />
+          <div className="animate-fade-in-up">
+            <TheftPanel
+              thefts={thefts}
+              playerMoney={playerDetails?.money ?? 0}
+              onAttack={handleTheftAttack}
+              onRefresh={refreshAll}
+            />
+          </div>
         )}
 
         {activeTab === "taxes" && (
-          <TaxesPanel taxes={taxes} onPay={handleTaxPay} onRefresh={refreshAll} />
+          <div className="animate-fade-in-up">
+            <TaxesPanel taxes={taxes} onPay={handleTaxPay} onRefresh={refreshAll} />
+          </div>
         )}
 
         {activeTab === "events" && (
-          <BrokerEventsPanel events={brokerEvents} onClear={clearBrokerEvents} />
+          <div className="animate-fade-in-up">
+            <BrokerEventsPanel events={brokerEvents} onClear={clearBrokerEvents} />
+          </div>
         )}
       </main>
     </div>

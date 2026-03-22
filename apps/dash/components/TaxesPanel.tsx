@@ -40,18 +40,18 @@ export function TaxesPanel({ taxes, onPay, onRefresh }: TaxesPanelProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-white">Taxes</h2>
+        <h2 className="text-lg font-bold text-white section-header">Taxes</h2>
         <button
           type="button"
           onClick={onRefresh}
-          className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors px-2 py-1 rounded bg-zinc-800"
+          className="text-xs px-3 py-1.5 rounded-lg glass hover:border-glow-cyan text-zinc-400 hover:text-zinc-200 transition-all"
         >
           Actualiser
         </button>
       </div>
 
       {message && (
-        <div className="px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm">
+        <div className="px-3 py-2 rounded-lg glass text-zinc-300 text-sm glow-cyan">
           {message}
         </div>
       )}
@@ -59,13 +59,13 @@ export function TaxesPanel({ taxes, onPay, onRefresh }: TaxesPanelProps) {
       {/* Taxes DUE */}
       {due.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-red-400 uppercase tracking-wide">
+          <h3 className="text-sm font-semibold text-red-400 uppercase tracking-wide section-header">
             À payer ({due.length})
           </h3>
           {due.map((tax) => (
             <div
               key={tax.id}
-              className="rounded-xl bg-red-950 border border-red-800 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4"
+              className="rounded-xl glass p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 glow-red border-glow-red card-3d"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -73,7 +73,7 @@ export function TaxesPanel({ taxes, onPay, onRefresh }: TaxesPanelProps) {
                   <span className="text-xs text-red-500">·</span>
                   <span className="text-xs text-red-400">{tax.player.name}</span>
                 </div>
-                <div className="text-xl font-bold text-red-200 mt-0.5">{tax.amount} OR</div>
+                <div className="text-xl font-bold text-red-200 mt-0.5 font-mono">{tax.amount} OR</div>
                 <div className="text-xs text-red-500 mt-0.5">
                   Délai : {formatRemaining(tax.remainingTime)}
                 </div>
@@ -82,7 +82,7 @@ export function TaxesPanel({ taxes, onPay, onRefresh }: TaxesPanelProps) {
                 type="button"
                 onClick={() => handlePay(tax.id)}
                 disabled={paying === tax.id}
-                className="w-full sm:w-auto shrink-0 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-colors disabled:opacity-40"
+                className="w-full sm:w-auto shrink-0 px-4 py-2 rounded-lg text-sm font-semibold btn-gaming-red"
               >
                 {paying === tax.id ? "..." : "Payer"}
               </button>
@@ -92,8 +92,8 @@ export function TaxesPanel({ taxes, onPay, onRefresh }: TaxesPanelProps) {
       )}
 
       {due.length === 0 && (
-        <div className="rounded-xl bg-zinc-800 border border-zinc-700 p-4 text-center">
-          <div className="text-emerald-400 text-lg">✓</div>
+        <div className="rounded-xl glass p-4 text-center glow-emerald">
+          <div className="text-emerald-400 text-lg">&#10003;</div>
           <p className="text-zinc-400 text-sm mt-1">Aucune taxe en attente</p>
         </div>
       )}
@@ -108,11 +108,11 @@ export function TaxesPanel({ taxes, onPay, onRefresh }: TaxesPanelProps) {
             {paid.map((tax) => (
               <div
                 key={tax.id}
-                className="rounded-lg bg-zinc-900 border border-zinc-800 px-4 py-2.5 flex items-center justify-between opacity-60"
+                className="rounded-lg glass px-4 py-2.5 flex items-center justify-between opacity-50"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-zinc-500 uppercase font-medium">{tax.type}</span>
-                  <span className="text-sm text-zinc-400">{tax.amount} OR</span>
+                  <span className="text-sm text-zinc-400 font-mono">{tax.amount} OR</span>
                 </div>
                 <span className="text-xs text-emerald-600 font-medium">PAYÉE</span>
               </div>
