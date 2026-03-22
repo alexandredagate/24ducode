@@ -1,6 +1,7 @@
 """Client Socket.IO sortant — connexion vers le serveur de jeu."""
 import asyncio
 import logging
+from typing import Callable
 
 import socketio
 
@@ -19,6 +20,7 @@ class SocketIOClient:
         self._access_token: str | None = None
         self._refresh_token: str | None = None
         self._connected = False
+        self._event_handlers: dict[str, list[Callable]] = {}
 
         @self._sio.on("connect")
         async def _on_connect():
@@ -36,6 +38,20 @@ class SocketIOClient:
             logger.debug("Réponse : %s", data)
             if self._pending and not self._pending.done():
                 self._pending.set_result(data)
+
+        @self._sio.on("capitain:status")
+        async def _on_capitain_status(*args):
+            data = args[0] if args else {}
+            logger.debug("Event capitain:status : %s", data)
+            for handler in self._event_handlers.get("capitain:status", []):
+                try:
+                    handler(data)
+                except Exception as e:
+                    logger.error("Erreur handler capitain:status: %s", e)
+
+    def on_event(self, event: str, handler: Callable) -> None:
+        """Enregistre un handler pour un event broadcast du serveur."""
+        self._event_handlers.setdefault(event, []).append(handler)
 
     @property
     def connected(self) -> bool:

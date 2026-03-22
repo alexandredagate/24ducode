@@ -110,6 +110,10 @@ class ExplorerAgent(BaseAgent):
         self._primary_resource: str | None = None
         # Orders (commandes du capitaine)
         self._current_order: dict | None = None
+        self._pending_order_signal: bool = False  # flag set par le broadcast push
+
+        # Écouter les broadcasts capitain:status pour réagir instantanément aux ordres
+        self.ws.on_event("capitain:status", self._on_order_broadcast)
 
     # ══════════════════════════════════════════════════════════════
     # MAIN LOOP
@@ -120,6 +124,12 @@ class ExplorerAgent(BaseAgent):
         # Charger les îles confirmées depuis la DB confirmed_refuel
         await self._load_confirmed_from_db()
         await self._refresh_map_grid()
+        # Nettoyer les ordres zombies (IN_PROGRESS sans agent)
+        cancel_resp = await self._send("capitain:cancel")
+        logger.info("🧹 Cancel ordres zombies au démarrage: %s", cancel_resp.get("data"))
+
+        last_move_time = 0.0  # timestamp du dernier ship:move envoyé
+        speed_s = self._ship_speed / 1000.0
 
         while True:
             # Refresh DB et grid seulement toutes les 30 moves (pas chaque tick)
@@ -137,12 +147,20 @@ class ExplorerAgent(BaseAgent):
             self._energy_before_move = self._energy
             self._last_move_dir = direction
 
+            # Respecter le rate limit du game server (ship_speed entre chaque move)
+            # On utilise le timestamp de RÉCEPTION de la dernière réponse car c'est plus proche
+            # du moment où le game server a traité le move et démarré son cooldown
+            now = asyncio.get_event_loop().time()
+            wait = speed_s - (now - last_move_time) + 0.15  # +150ms marge réseau
+            if wait > 0.01:
+                await asyncio.sleep(wait)
             resp = await self._send("ship:move", {"direction": direction})
+            last_move_time = asyncio.get_event_loop().time()  # timestamp de RÉPONSE
             if resp.get("status") != "ok":
                 await self._on_error(resp.get("error", ""))
                 continue
-
             self._moves += 1
+            speed_s = self._ship_speed / 1000.0  # update au cas où upgrade
             await self._on_move(direction, resp["data"])
 
             # Si on exécute un ordre, update le progrès
@@ -156,8 +174,6 @@ class ExplorerAgent(BaseAgent):
             if self._moves % 15 == 0:
                 enriched = self._moves % 60 == 0  # enrichi avec player:details toutes les 60 moves
                 await self._send_snapshot(enriched=enriched)
-
-            await asyncio.sleep(self._ship_speed / 1000.0)
 
     # ══════════════════════════════════════════════════════════════
     # INIT
@@ -645,10 +661,11 @@ class ExplorerAgent(BaseAgent):
         if not self._pos:
             return random.choice(_dirs())
 
-        # Path terminé → refresh grid et chercher la prochaine frontière
+        # Path terminé → refresh grid (si pas déjà fait ce tick) et chercher la prochaine frontière
         if not self._path:
             self._sweep_dir = ""
-            await self._refresh_map_grid()
+            if self._grid_refresh_counter > 0:  # pas déjà refresh ce tick
+                await self._refresh_map_grid()
             self._start_sweep()
             if self._path:
                 d = self._path.pop(0)
@@ -943,19 +960,38 @@ class ExplorerAgent(BaseAgent):
 
     # ══════════════════════════════════════════════════════════════
     # ORDERS (commandes du capitaine via capitain:go-to)
+    # Push via broadcast + poll fallback toutes les 10 moves
     # ══════════════════════════════════════════════════════════════
 
+    def _on_order_broadcast(self, data: dict) -> None:
+        """Appelé par le broadcast capitain:status (push instantané)."""
+        status = data.get("status")
+        if status == "PENDING":
+            logger.info("📡 BROADCAST ordre reçu! orderId=%s target=%s", data.get("orderId"), data.get("target"))
+            self._pending_order_signal = True
+
     async def _check_orders(self) -> None:
-        """Poll les ordres en attente depuis la DB via l'API."""
+        """Vérifie les ordres : réactif via push, poll fallback toutes les 10 moves."""
         # Ne pas checker si on exécute déjà un ordre
         if self._current_order:
             return
 
-        resp = await self._send("capitain:status")
-        if resp.get("status") != "ok" or not resp.get("data"):
+        # Vérifier seulement si : signal push reçu OU poll fallback toutes les 10 moves
+        should_poll = self._pending_order_signal or (self._moves % 10 == 0)
+        if not should_poll:
             return
 
-        order = resp["data"]
+        self._pending_order_signal = False  # reset le signal
+
+        resp = await self._send("capitain:status")
+        if resp.get("status") != "ok":
+            logger.warning("📋 capitain:status erreur: %s", resp.get("error"))
+            return
+        data = resp.get("data")
+        if not data:
+            return  # pas d'ordre en attente
+
+        order = data
         if order.get("status") != "PENDING":
             return
 

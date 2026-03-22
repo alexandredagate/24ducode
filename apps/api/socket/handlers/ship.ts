@@ -73,13 +73,7 @@ export async function handleShip(
         }
       }
 
-      t1 = performance.now();
-      const mapGrid = await getMapGrid();
-      const tGrid = (performance.now() - t1).toFixed(1);
-
-      io.emit("map:update", { command: "map:update", status: "ok", data: mapGrid });
-
-      // Enrich position with note + discoveryStatus
+      // Enrich position with note + discoveryStatus (lecture rapide par index)
       let enrichedPosition = data.position;
       if (data.position) {
         const cellData = await getCellAt(data.position.x, data.position.y);
@@ -92,18 +86,27 @@ export async function handleShip(
         }
       }
 
+      // saveShipPosition + map:update en parallèle (non-bloquant pour la réponse)
       t1 = performance.now();
-      await saveShipPosition(codingGameId, enrichedPosition, data.energy);
-      const tSavePos = (performance.now() - t1).toFixed(1);
+      const savePromise = saveShipPosition(codingGameId, enrichedPosition, data.energy);
 
+      // map:update en arrière-plan (le dashboard n'a pas besoin de ça en temps réel)
+      const gridPromise = getMapGrid().then((mapGrid) => {
+        io.emit("map:update", { command: "map:update", status: "ok", data: mapGrid });
+      });
+
+      // Broadcast position immédiatement (léger, pas de DB)
       io.emit("ship:position", {
         position: enrichedPosition,
         energy: data.energy,
         ...(validated > 0 && { validated }),
       });
 
+      await Promise.all([savePromise, gridPromise]);
+      const tAfter = (performance.now() - t1).toFixed(1);
+
       const tTotal = (performance.now() - t0).toFixed(1);
-      console.log(`[perf:move] total=${tTotal}ms | getPos=${tGetPos} moveApi=${tMoveApi} upsert=${tUpsert} grid=${tGrid} savePos=${tSavePos}`);
+      console.log(`[perf:move] total=${tTotal}ms | getPos=${tGetPos} moveApi=${tMoveApi} upsert=${tUpsert} after=${tAfter}`);
 
       return { command: "ship:move", status: "ok", data };
     }
