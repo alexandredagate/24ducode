@@ -129,7 +129,7 @@ class ExplorerAgent(BaseAgent):
         logger.info("🧹 Cancel ordres zombies au démarrage: %s", cancel_resp.get("data"))
 
         last_move_time = 0.0  # timestamp du dernier ship:move envoyé
-        speed_s = self._ship_speed / 1000.0
+        interval = settings.move_interval  # rate limit API (ex: 0.6s)
 
         while True:
             # Refresh DB et grid seulement toutes les 30 moves (pas chaque tick)
@@ -147,20 +147,17 @@ class ExplorerAgent(BaseAgent):
             self._energy_before_move = self._energy
             self._last_move_dir = direction
 
-            # Respecter le rate limit du game server (ship_speed entre chaque move)
-            # On utilise le timestamp de RÉCEPTION de la dernière réponse car c'est plus proche
-            # du moment où le game server a traité le move et démarré son cooldown
+            # Respecter le rate limit API (move_interval entre chaque move)
             now = asyncio.get_event_loop().time()
-            wait = speed_s - (now - last_move_time) + 0.15  # +150ms marge réseau
+            wait = interval - (now - last_move_time)
             if wait > 0.01:
                 await asyncio.sleep(wait)
             resp = await self._send("ship:move", {"direction": direction})
-            last_move_time = asyncio.get_event_loop().time()  # timestamp de RÉPONSE
+            last_move_time = asyncio.get_event_loop().time()
             if resp.get("status") != "ok":
                 await self._on_error(resp.get("error", ""))
                 continue
             self._moves += 1
-            speed_s = self._ship_speed / 1000.0  # update au cas où upgrade
             await self._on_move(direction, resp["data"])
 
             # Si on exécute un ordre, update le progrès
@@ -798,7 +795,7 @@ class ExplorerAgent(BaseAgent):
         if "GAME_OVER_INSERT_COINS" in error or "amende" in error.lower():
             if settings.auto_pay_fines:
                 await self._handle_fine()
-            await asyncio.sleep(5.0)
+            await asyncio.sleep(1.0)
             return
 
         if "zone" in error.lower() and "accéder" in error.lower():
@@ -845,7 +842,7 @@ class ExplorerAgent(BaseAgent):
                     self._path_reason = "zone_escape"
                     logger.info("↔️ Escape latéral: %s", self._path)
 
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(0.6)
             return
 
         # Erreur inconnue → reculer vers l'île la plus proche
@@ -855,13 +852,13 @@ class ExplorerAgent(BaseAgent):
             )
             if nearest:
                 self._set_path_to(nearest, "fuel_emergency")
-        await asyncio.sleep(3.0)
+        await asyncio.sleep(1.0)
 
     async def _on_stranded(self) -> None:
         logger.info("🚨 STRANDED — paiement amende + attente...")
         if settings.auto_pay_fines:
             await self._handle_fine()
-        await asyncio.sleep(15.0)
+        await asyncio.sleep(2.0)
         # Tenter un move
         d = random.choice(_dirs())
         resp = await self._send("ship:move", {"direction": d})
