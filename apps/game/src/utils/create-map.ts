@@ -105,12 +105,20 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
 
   // ─── Home marker (🏠) at server coords (5, 3) ─────────
   let homeMarker: Mesh | null = null;
-  if (meta) {
-    const home = serverToGrid(5, 3, meta);
-    const hx = getOriginX() + home.col * TILE_SIZE;
-    const hz = getOriginZ() + home.row * TILE_SIZE;
+  const homeGrid = meta ? serverToGrid(5, 3, meta) : null;
+
+  function updateHomeMarkerVisibility(targetMap: GameMap) {
+    if (!homeMarker || !homeGrid) return;
+    const cell = targetMap.cells[homeGrid.row]?.[homeGrid.col];
+    homeMarker.isVisible = cell != null && isVisible(cell.type);
+  }
+
+  if (homeGrid) {
+    const hx = getOriginX() + homeGrid.col * TILE_SIZE;
+    const hz = getOriginZ() + homeGrid.row * TILE_SIZE;
     homeMarker = createEmojiBillboard("\u{1F3E0}", "homeMarker", scene);
     homeMarker.position.set(hx, MARKER_Y, hz);
+    updateHomeMarkerVisibility(map);
   }
 
   // Animate markers + scale with camera distance
@@ -339,6 +347,7 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
       rebuildMarkers();
     }
 
+    updateHomeMarkerVisibility(newMap);
     rebuildFog(clipCenter?.row, clipCenter?.col);
   }
 
@@ -378,6 +387,7 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
     }
 
     rebuildMarkers();
+    updateHomeMarkerVisibility(newMap);
     rebuildFog();
   }
 

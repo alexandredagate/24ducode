@@ -122,7 +122,7 @@ function buildIslandMesh(
     const onIsland = islandSet.has(`${nearR}_${nearC}`);
 
     if (!onIsland) {
-      positions[i + 1] = -5;
+      positions[i + 1] = -0.28;
       continue;
     }
 
@@ -161,7 +161,7 @@ function buildIslandMesh(
       const nc = Math.round(gc);
       const onIsland = islandSet.has(`${nr}_${nc}`);
 
-      if (!onIsland || vy < -0.3) {
+      if (!onIsland || vy < -0.1) {
         colors.push(0.05, 0.15, 0.35, 1);
         continue;
       }
