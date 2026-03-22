@@ -158,31 +158,53 @@ const shipPositionListeners: ShipPositionCallback[] = [];
 export async function connect(): Promise<Socket> {
   if (socket?.connected) return socket;
 
-  socket = io(SERVER_URL, { transports: ['websocket'] });
+  // Clean up old socket if exists
+  if (socket) {
+    socket.removeAllListeners();
+    socket.close();
+    socket = null;
+  }
 
-  socket.on('map:update', (data: SocketResponse) => {
-    if (data.status === 'ok' && data.data) {
-      const gridData = data.data as MapGridData;
-      for (const cb of mapUpdateListeners) cb(gridData);
-    }
+  return new Promise<Socket>((resolve, reject) => {
+    const s = io(SERVER_URL, {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 3,
+    });
+    socket = s;
+
+    const timeout = setTimeout(() => {
+      s.close();
+      reject(new Error('Socket connection timed out'));
+    }, 10_000);
+
+    s.on('connect', () => {
+      clearTimeout(timeout);
+      console.log('[socket] connected, transport:', s.io.engine.transport.name);
+
+      s.on('map:update', (data: SocketResponse) => {
+        if (data.status === 'ok' && data.data) {
+          const gridData = data.data as MapGridData;
+          for (const cb of mapUpdateListeners) cb(gridData);
+        }
+      });
+
+      s.on('ship:position', (data: ShipLocationResponse) => {
+        for (const cb of shipPositionListeners) cb(data);
+      });
+
+      s.on('broker:event', (data: unknown) => {
+        for (const cb of brokerEventListeners) cb(data);
+      });
+
+      resolve(s);
+    });
+
+    s.on('connect_error', (err) => {
+      console.error('[socket] connect_error:', err.message);
+      clearTimeout(timeout);
+      reject(err);
+    });
   });
-
-  socket.on('ship:position', (data: ShipLocationResponse) => {
-    for (const cb of shipPositionListeners) cb(data);
-  });
-
-  socket.on('broker:event', (data: unknown) => {
-    for (const cb of brokerEventListeners) cb(data);
-  });
-
-  // Wait for the socket to actually connect before returning
-  await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Socket connection timed out')), 10_000);
-    socket!.on('connect', () => { clearTimeout(timeout); resolve(); });
-    socket!.on('connect_error', (err) => { clearTimeout(timeout); reject(err); });
-  });
-
-  return socket;
 }
 
 export function onMapUpdate(cb: MapUpdateCallback): () => void {
