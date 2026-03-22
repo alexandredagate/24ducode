@@ -17,9 +17,11 @@ import skyboxNx from "../assets/skybox/nx.png?url";
 import skyboxNy from "../assets/skybox/ny.png?url";
 import skyboxNz from "../assets/skybox/nz.png?url";
 
+const CODING_GAME_ID = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjb2RpbmdnYW1lIiwic3ViIjoiNDEwYzhiNjQtOTEzZi00NmViLThiYzAtN2ExOTdjNGY1MDZkIiwicm9sZXMiOlsiVVNFUiJdfQ.hnkPxnsdQQFmwnggFKWfDRq5PPQrQ2wBkeqAYIFQklw';
+
 async function authenticatePlayer(): Promise<boolean> {
     try {
-        await login('1234');
+        await login(CODING_GAME_ID);
         return true;
     } catch (err) {
         console.error('[game] login failed:', err);

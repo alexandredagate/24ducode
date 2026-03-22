@@ -230,8 +230,8 @@ export function getMapMeta(): MapMeta | null {
   return mapMeta;
 }
 
-export async function login(pin: string): Promise<AuthTokens> {
-  const tokens = await sendCommand<AuthTokens>('auth:login', { pin });
+export async function login(codingGameId: string): Promise<AuthTokens> {
+  const tokens = await sendCommand<AuthTokens>('auth:login', { codingGameId });
   accessToken = tokens.accessToken;
   refreshToken = tokens.refreshToken;
   return tokens;
