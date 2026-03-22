@@ -9,14 +9,16 @@ import { PlayerCard } from "../components/PlayerCard";
 import { ShipPanel } from "../components/ShipPanel";
 import { TaxesPanel } from "../components/TaxesPanel";
 import { TheftPanel } from "../components/TheftPanel";
+import { AgentPanel } from "../components/AgentPanel";
 import { useSocket } from "../hooks/useSocket";
 import type { Direction, ResourceType } from "../hooks/useSocket";
 
-type Tab = "overview" | "ship" | "map" | "marketplace" | "taxes" | "thefts" | "events";
+type Tab = "overview" | "ship" | "agent" | "map" | "marketplace" | "taxes" | "thefts" | "events";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Vue globale" },
   { id: "ship", label: "Bateau" },
+  { id: "agent", label: "Agent" },
   { id: "map", label: "Carte" },
   { id: "marketplace", label: "Marketplace" },
   { id: "thefts", label: "Piraterie" },
@@ -46,6 +48,7 @@ export default function Home() {
     brokerEvents,
     clearBrokerEvents,
     capitainStatus,
+    botStatus,
     refreshAll,
     lastError,
   } = useSocket();
@@ -251,6 +254,12 @@ export default function Home() {
         {activeTab === "ship" && (
           <div className="max-w-md mx-auto">
             <ShipPanel {...shipPanelProps} />
+          </div>
+        )}
+
+        {activeTab === "agent" && (
+          <div className="max-w-xl mx-auto">
+            <AgentPanel botStatus={botStatus} capitainStatus={capitainStatus} emit={emit} />
           </div>
         )}
 

@@ -147,6 +147,11 @@ class ExplorerAgent(BaseAgent):
             if self._moves % 50 == 0:
                 self._log_status()
 
+            # Snapshot toutes les 15 moves → DB + broadcast aux clients
+            if self._moves % 15 == 0:
+                enriched = self._moves % 60 == 0  # enrichi avec player:details toutes les 60 moves
+                await self._send_snapshot(enriched=enriched)
+
             await asyncio.sleep(self._ship_speed / 1000.0)
 
     # ══════════════════════════════════════════════════════════════
@@ -920,6 +925,62 @@ class ExplorerAgent(BaseAgent):
         # Si le path est vide mais on n'est pas arrivé → recalculer
         if not self._path and dist > 1:
             self._set_path_to({"x": tx, "y": ty}, "order")
+
+    # ══════════════════════════════════════════════════════════════
+    # SNAPSHOTS — état du bot envoyé à l'API pour DB + broadcast
+    # ══════════════════════════════════════════════════════════════
+
+    def _get_status_label(self) -> str:
+        if self._current_order:
+            return "order"
+        if self._path_reason.startswith("fuel"):
+            return "refueling"
+        if self._path_reason == "zone_escape":
+            return "zone_escape"
+        if self._path_reason == "validate":
+            return "validating"
+        if self._path_reason == "order":
+            return "order"
+        return "exploring"
+
+    async def _send_snapshot(self, enriched: bool = False) -> None:
+        """Envoie un snapshot de l'état du bot à l'API."""
+        snapshot: dict = {
+            "position": {"x": self._pos["x"], "y": self._pos["y"]} if self._pos else None,
+            "zone": self._zone,
+            "energy": self._energy,
+            "maxEnergy": self._max_energy,
+            "shipLevel": self._ship_level,
+            "status": self._get_status_label(),
+            "totalMoves": self._moves,
+            "islandsFound": self._islands_found,
+            "islandVisits": self._island_visits,
+            "refuelIslandsCount": len(self._refuel_islands),
+            "blockedCellsCount": len(self._blocked_cells),
+            "pathReason": self._path_reason or "none",
+            "pathLength": len(self._path),
+        }
+
+        if self._current_order:
+            snapshot["currentOrderId"] = self._current_order.get("id")
+            target = self._current_order.get("payload", {}).get("coordinates")
+            if target:
+                snapshot["currentOrderTarget"] = target
+
+        # Enrichi avec player:details (quotient, money, resources, islands)
+        if enriched:
+            resp = await self._send("player:details")
+            if resp.get("status") == "ok":
+                details = resp["data"]
+                snapshot["quotient"] = details.get("quotient")
+                snapshot["money"] = details.get("money")
+                snapshot["resources"] = {r["type"]: r["quantity"] for r in details.get("resources", [])}
+                snapshot["knownIslandsCount"] = len([
+                    i for i in details.get("discoveredIslands", [])
+                    if i.get("islandState") == "KNOWN"
+                ])
+
+        await self._send("bot:snapshot", snapshot)
 
     # ══════════════════════════════════════════════════════════════
     # UTILS

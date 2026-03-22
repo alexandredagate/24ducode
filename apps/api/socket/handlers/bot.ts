@@ -9,6 +9,13 @@ import {
   updateOrderStatus,
   type OrderAction,
 } from "../../services/bot-orders";
+import {
+  saveBotSnapshot,
+  getLatestSnapshot,
+  getRecentSnapshots,
+  getSnapshotsSince,
+  type BotSnapshot,
+} from "../../services/bot-stats";
 import type { ClientCommand, ServerResponse } from "types";
 
 function requireAuth(socket: Socket): string {
@@ -118,6 +125,47 @@ export async function handleBot(
       }
 
       return { command: "capitain:progress", status: "ok" };
+    }
+
+    /**
+     * L'agent envoie un snapshot de son état. Sauvé en DB + broadcast aux clients.
+     */
+    case "bot:snapshot": {
+      const payload = msg.payload as BotSnapshot;
+      if (!payload) throw new Error("snapshot data required");
+
+      const snapshot: BotSnapshot = { ...payload, timestamp: new Date() };
+      await saveBotSnapshot(snapshot);
+
+      // Broadcast aux clients
+      if (io) {
+        io.emit("bot:status", snapshot);
+      }
+
+      return { command: "bot:snapshot", status: "ok" };
+    }
+
+    /**
+     * Récupère l'état actuel du bot (dernier snapshot).
+     */
+    case "bot:status": {
+      const latest = await getLatestSnapshot();
+      return { command: "bot:status", status: "ok", data: latest };
+    }
+
+    /**
+     * Récupère l'historique des snapshots.
+     * payload?: { since?: string (ISO date), limit?: number }
+     */
+    case "bot:history": {
+      const payload = msg.payload as { since?: string; limit?: number } | undefined;
+      let snapshots: BotSnapshot[];
+      if (payload?.since) {
+        snapshots = await getSnapshotsSince(new Date(payload.since));
+      } else {
+        snapshots = await getRecentSnapshots(payload?.limit ?? 100);
+      }
+      return { command: "bot:history", status: "ok", data: snapshots };
     }
 
     default:

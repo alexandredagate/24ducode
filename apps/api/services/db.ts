@@ -15,6 +15,7 @@ export async function connectDb(): Promise<Db> {
   await db.collection("cells").createIndex({ x: 1, y: 1 }, { unique: true });
   await db.collection("confirmed_refuel").createIndex({ x: 1, y: 1 }, { unique: true });
   await db.collection("bot_orders").createIndex({ status: 1, createdAt: 1 });
+  await db.collection("bot_stats").createIndex({ timestamp: -1 });
   // HOME est toujours un refuel confirmé
   await db.collection("confirmed_refuel").updateOne(
     { x: 5, y: 3 },

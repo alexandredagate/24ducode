@@ -93,6 +93,29 @@ export interface BrokerEvent {
   data: unknown;
 }
 
+export interface BotStatus {
+  position: { x: number; y: number } | null;
+  zone: number;
+  energy: number;
+  maxEnergy: number;
+  shipLevel: number;
+  status: string;
+  totalMoves: number;
+  islandsFound: number;
+  islandVisits: number;
+  refuelIslandsCount: number;
+  blockedCellsCount: number;
+  pathReason: string;
+  pathLength: number;
+  currentOrderId?: string;
+  currentOrderTarget?: { x: number; y: number };
+  quotient?: number;
+  money?: number;
+  resources?: Record<string, number>;
+  knownIslandsCount?: number;
+  timestamp?: string;
+}
+
 export interface CapitainStatus {
   orderId?: string;
   status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED" | "CANCELLED";
@@ -139,6 +162,7 @@ interface UseSocketReturn {
   brokerEvents: BrokerEvent[];
   clearBrokerEvents: () => void;
   capitainStatus: CapitainStatus | null;
+  botStatus: BotStatus | null;
   refreshAll: () => void;
   lastError: string | null;
 }
@@ -164,6 +188,7 @@ export function useSocket(): UseSocketReturn {
   const [brokerEvents, setBrokerEvents] = useState<BrokerEvent[]>([]);
   const brokerIdRef = useRef(0);
   const [capitainStatus, setCapitainStatus] = useState<CapitainStatus | null>(null);
+  const [botStatus, setBotStatus] = useState<BotStatus | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
   // Refs stables pour les callbacks utilisés dans useEffect sans les mettre en deps
@@ -458,6 +483,13 @@ export function useSocket(): UseSocketReturn {
       }
     });
 
+    // bot:status → real-time bot state snapshots
+    socket.on("bot:status", (data: unknown) => {
+      if (data != null && typeof data === "object") {
+        setBotStatus(data as BotStatus);
+      }
+    });
+
     // Auto-refresh du token si déjà connecté
     const storedRefreshToken = localStorage.getItem("refreshToken");
     if (storedRefreshToken) {
@@ -544,6 +576,7 @@ export function useSocket(): UseSocketReturn {
     brokerEvents,
     clearBrokerEvents: useCallback(() => setBrokerEvents([]), []),
     capitainStatus,
+    botStatus,
     storageInfo,
     mapGrid,
     refreshMapGrid,
