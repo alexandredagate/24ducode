@@ -54,6 +54,10 @@ class MongoClient:
         result = await self.col(collection).delete_one(query)
         return result.deleted_count
 
+    async def delete_many(self, collection: str, query: dict) -> int:
+        result = await self.col(collection).delete_many(query)
+        return result.deleted_count
+
     async def count(self, collection: str, query: dict | None = None) -> int:
         return await self.col(collection).count_documents(query or {})
 

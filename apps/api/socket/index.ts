@@ -49,7 +49,7 @@ export function createSocketServer(httpServer: HttpServer): SocketServer {
     });
 
     socket.on("message", async (msg: ClientCommand) => {
-      console.log(`[socket] message received:`, JSON.stringify(msg));
+      const t0 = performance.now();
       let response: ServerResponse;
       try {
         const { command } = msg;
@@ -84,7 +84,8 @@ export function createSocketServer(httpServer: HttpServer): SocketServer {
         };
       }
 
-      console.log(`[socket] response:`, JSON.stringify(response));
+      const elapsed = (performance.now() - t0).toFixed(1);
+      console.log(`[perf] ${msg.command} ${response.status} ${elapsed}ms`);
       socket.emit("response", response);
     });
 

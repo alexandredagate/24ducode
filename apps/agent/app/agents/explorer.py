@@ -74,10 +74,13 @@ class ExplorerAgent(BaseAgent):
         # Navigation
         self._path: list[str] = []       # directions à suivre
         self._path_reason: str = ""      # pourquoi on suit ce path
-        # Spiral (fallback)
-        self._spiral_center: tuple[int, int] = (HOME_POSITION["x"], HOME_POSITION["y"])
-        self._spiral_angle: float = 2.0 * math.pi
         self._last_dir: str = ""
+        # Frontier Sweep state
+        self._sweep_target: dict | None = None     # point de frontière ciblé
+        self._sweep_dir: str = ""                  # direction du sweep en cours (N/S/E/W)
+        self._sweep_lateral: str = ""              # direction latérale du sweep
+        self._sweep_line_len: int = 0              # moves restants sur la ligne actuelle
+        self._sweep_resume_pos: dict | None = None # position à reprendre après refuel
         # Map grid (pour exploration intelligente)
         self._grid: list[str] = []
         self._grid_min_x: int = 0
@@ -130,7 +133,7 @@ class ExplorerAgent(BaseAgent):
             # ── CHECK ORDERS (commandes du capitaine) ──
             await self._check_orders()
 
-            direction = self._decide()
+            direction = await self._decide()
             self._energy_before_move = self._energy
             self._last_move_dir = direction
 
@@ -204,7 +207,7 @@ class ExplorerAgent(BaseAgent):
     # DECIDE — le coeur de l'algo, appelé à chaque tick
     # ══════════════════════════════════════════════════════════════
 
-    def _decide(self) -> str:
+    async def _decide(self) -> str:
         # ── FUEL CHECK (toujours, en premier, sans exception) ──
         fuel_dir = self._fuel_check()
         if fuel_dir is not None:
@@ -239,7 +242,7 @@ class ExplorerAgent(BaseAgent):
             return self._path.pop(0)
 
         # ── EXPLORATION INTELLIGENTE (basée sur map:grid) ──
-        return self._explore()
+        return await self._explore()
 
     def _is_stuck(self) -> bool:
         """Détecte si le bot tourne en boucle (mêmes positions répétées)."""
@@ -322,7 +325,10 @@ class ExplorerAgent(BaseAgent):
             )
 
         if needs_fuel:
-            # Si on interrompt un ordre → on le reprendra après le refuel
+            # Sauver la position pour reprendre le sweep après refuel
+            if self._pos and self._sweep_dir:
+                self._sweep_resume_pos = {"x": self._pos["x"], "y": self._pos["y"]}
+                logger.info("📌 Sweep en pause à (%s,%s) — refuel", self._pos["x"], self._pos["y"])
             if self._path_reason == "order" and self._current_order:
                 logger.info("⛽ Ordre en pause — refuel d'abord")
             self._set_path_to(nearest, reason)
@@ -341,7 +347,7 @@ class ExplorerAgent(BaseAgent):
         """Trouve l'île la plus proche pour le fuel.
 
         PRIORITÉ 1 : îles CONFIRMÉES (refuel_islands) — on SAIT qu'elles rechargent
-        PRIORITÉ 2 : n'importe quelle SAND pas blacklistée (tentative)
+        PRIORITÉ 2 : n'importe quelle SAND pas blacklistée, à dist >= 2 des bad islands
         FALLBACK   : HOME (toujours fiable)
         """
         # 1. Chercher la plus proche parmi les CONFIRMÉES
@@ -356,15 +362,23 @@ class ExplorerAgent(BaseAgent):
             if best and best_dist < 30:  # raisonnable
                 return best
 
-        # 2. Sinon, n'importe quelle SAND pas blacklistée (on tentera le refill)
+        # 2. Sinon, n'importe quelle SAND pas blacklistée ET pas collée aux bad islands
+        # (les îles adjacentes à une bad island sont probablement dans la même zone sans refuel)
         if self.world:
-            candidates = self.world.nearest_islands(x, y, self._zone, n=15, same_zone=True)
-            for c in candidates:
-                if (c["x"], c["y"]) not in self._bad_islands:
-                    return c
-            candidates = self.world.nearest_islands(x, y, self._zone, n=15)
-            for c in candidates:
-                if (c["x"], c["y"]) not in self._bad_islands:
+            for same_zone in (True, False):
+                candidates = self.world.nearest_islands(x, y, self._zone, n=30, same_zone=same_zone) if same_zone else self.world.nearest_islands(x, y, self._zone, n=30)
+                for c in candidates:
+                    cx, cy = c["x"], c["y"]
+                    if (cx, cy) in self._bad_islands:
+                        continue
+                    # Rejeter les candidats trop proches d'une île blacklistée (même cluster)
+                    too_close = False
+                    for bx, by in self._bad_islands:
+                        if abs(cx - bx) + abs(cy - by) <= 2:
+                            too_close = True
+                            break
+                    if too_close:
+                        continue
                     return c
 
         # 3. Fallback HOME
@@ -375,10 +389,28 @@ class ExplorerAgent(BaseAgent):
     # ══════════════════════════════════════════════════════════════
 
     async def _load_confirmed_from_db(self) -> None:
-        """Charge les îles confirmées depuis la collection confirmed_refuel en DB."""
+        """Charge les îles confirmées depuis la collection confirmed_refuel en DB.
+
+        PURGE ONE-SHOT : l'ancien seed copiait toutes les SAND KNOWN dans confirmed_refuel,
+        mais KNOWN ≠ recharge (ex: zone 3). On purge et repart de HOME uniquement.
+        Le bot reconstruira la liste au fur et à mesure des vrais refuels.
+        """
         self._bad_islands.clear()
         if not self.world or not self.world._db:
             logger.info("🔄 Pas de DB — seul HOME dans refuel_islands")
+            return
+
+        # Purge one-shot : si la collection a des centaines d'entrées c'est le seed toxique
+        # (l'ancien seed copiait toutes les SAND KNOWN, dont des îles zone 3 qui ne rechargent pas)
+        total = await self.world._db.count("confirmed_refuel")
+        if total > 100:
+            logger.warning("🧹 PURGE confirmed_refuel (%s entrées — seed toxique détecté)", total)
+            await self.world._db.delete_many("confirmed_refuel", {})
+            await self.world._db.upsert("confirmed_refuel",
+                                        {"x": HOME_POSITION["x"], "y": HOME_POSITION["y"]},
+                                        {"x": HOME_POSITION["x"], "y": HOME_POSITION["y"]})
+            self._refuel_islands = {(HOME_POSITION["x"], HOME_POSITION["y"])}
+            logger.info("🔄 confirmed_refuel purgé — seul HOME conservé")
             return
 
         docs = await self.world._db.find_many("confirmed_refuel", {}, limit=10000)
@@ -438,90 +470,199 @@ class ExplorerAgent(BaseAgent):
             return self._grid[row][col]
         return "?"  # hors de la grid = inexploré
 
-    def _best_explore_direction(self) -> str:
-        """Choisit la direction qui maximise les cellules inexplorées dans un cône.
+    # ── FRONTIER SWEEP ─────────────────────────────────────
 
-        Pour chaque direction, compte combien de cellules dans un cône de 15 cells
-        de profondeur sont inexplorées. Choisit la direction avec le plus gros potentiel.
+    def _find_nearest_frontier(self, max_dist: int = 60) -> dict | None:
+        """Trouve la cellule inexploré ('0') la plus proche qui borde une cellule explorée.
+
+        Retourne {"x": x, "y": y} ou None si aucune frontière trouvée dans le rayon.
         """
+        if not self._grid or not self._pos:
+            return None
+
+        px, py = self._pos["x"], self._pos["y"]
+        best = None
+        best_dist = max_dist + 1
+
+        # Scanner la grid pour trouver les cellules "0" adjacentes à des cellules explorées
+        for row_idx in range(len(self._grid)):
+            y = self._grid_min_y + row_idx
+            row = self._grid[row_idx]
+            for col_idx in range(len(row)):
+                x = self._grid_min_x + col_idx
+                if row[col_idx] != "0":
+                    continue
+                # Vérifier qu'au moins un voisin est exploré (pas "0" ni "?")
+                has_explored_neighbor = False
+                for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+                    nc = self._grid_cell(x + dx, y + dy)
+                    if nc not in ("0", "?"):
+                        has_explored_neighbor = True
+                        break
+                if not has_explored_neighbor:
+                    continue
+                # Cellule frontière trouvée — calculer la distance
+                d = abs(x - px) + abs(y - py)  # Manhattan rapide
+                if d < best_dist:
+                    best_dist = d
+                    best = {"x": x, "y": y}
+
+        if best:
+            logger.info(
+                "🔍 Frontière la plus proche: (%s,%s) dist=%s",
+                best["x"], best["y"], best_dist,
+            )
+        return best
+
+    def _analyze_borders(self) -> dict[str, int]:
+        """Compte les cellules inexplorées au-delà de chaque bord de la carte.
+
+        Retourne {N: score, S: score, E: score, W: score} où score =
+        nombre de cellules inexplorées dans une bande de 20 cells au-delà du bord.
+        """
+        if not self._grid or not self._pos:
+            return {"N": 1, "S": 1, "E": 1, "W": 1}
+
+        px, py = self._pos["x"], self._pos["y"]
+        scores: dict[str, int] = {}
+
+        # N = y diminue (hors grid au-dessus = inconnu)
+        n_score = 0
+        for dx in range(-20, 21):
+            for depth in range(1, 21):
+                cell = self._grid_cell(px + dx, self._grid_min_y - depth)
+                if cell in ("0", "?"):
+                    n_score += 1
+        scores["N"] = n_score
+
+        # S = y augmente (hors grid en dessous)
+        s_score = 0
+        for dx in range(-20, 21):
+            for depth in range(1, 21):
+                cell = self._grid_cell(px + dx, self._grid_max_y + depth)
+                if cell in ("0", "?"):
+                    s_score += 1
+        scores["S"] = s_score
+
+        # W = x diminue
+        w_score = 0
+        for dy in range(-20, 21):
+            for depth in range(1, 21):
+                cell = self._grid_cell(self._grid_min_x - depth, py + dy)
+                if cell in ("0", "?"):
+                    w_score += 1
+        scores["W"] = w_score
+
+        # E = x augmente
+        e_score = 0
+        for dy in range(-20, 21):
+            for depth in range(1, 21):
+                cell = self._grid_cell(self._grid_max_x + depth, py + dy)
+                if cell in ("0", "?"):
+                    e_score += 1
+        scores["E"] = e_score
+
+        return scores
+
+    def _pick_sweep_border(self) -> str:
+        """Choisit le bord avec le plus d'inconnu, en évitant les blocked."""
+        scores = self._analyze_borders()
+        # Filtrer les directions bloquées (zone boundary)
+        for d in list(scores.keys()):
+            if self._pos:
+                dx, dy = _DIR_VECTORS[d]
+                test_x = int(self._pos["x"] + dx * 5)
+                test_y = int(self._pos["y"] + dy * 5)
+                if (test_x, test_y) in self._blocked_cells:
+                    scores[d] = 0
+        best = max(scores, key=scores.get)
+        logger.info(
+            "🧭 Analyse des bords: N=%s S=%s E=%s W=%s → %s",
+            scores.get("N", 0), scores.get("S", 0),
+            scores.get("E", 0), scores.get("W", 0), best,
+        )
+        return best
+
+    def _start_sweep(self) -> None:
+        """Initialise un nouveau sweep vers la frontière la plus proche, ou le bord le plus prometteur."""
+        if not self._pos:
+            return
+
+        px, py = self._pos["x"], self._pos["y"]
+
+        # ── PRIORITÉ : frontière la plus proche dans la grid ──
+        nearest = self._find_nearest_frontier()
+        if nearest:
+            # Déterminer la direction principale du sweep à partir du vecteur vers la cible
+            dx = nearest["x"] - px
+            dy = nearest["y"] - py
+            if abs(dy) >= abs(dx):
+                self._sweep_dir = "N" if dy < 0 else "S"
+                self._sweep_lateral = "E"
+            else:
+                self._sweep_dir = "W" if dx < 0 else "E"
+                self._sweep_lateral = "N"
+            self._sweep_target = nearest
+            self._sweep_line_len = 30
+            dist = _distance(px, py, nearest["x"], nearest["y"], self._zone)
+            logger.info(
+                "🎯 SWEEP nearest → (%s,%s) dist=%s, dir=%s, lateral=%s",
+                nearest["x"], nearest["y"], dist, self._sweep_dir, self._sweep_lateral,
+            )
+            self._set_path_to(nearest, "sweep_rush")
+            return
+
+        # ── FALLBACK : rush vers le bord le plus prometteur ──
+        border = self._pick_sweep_border()
+        self._sweep_dir = border
+
+        if border == "N":
+            target = {"x": px, "y": self._grid_min_y - 2}
+            self._sweep_lateral = "E"
+        elif border == "S":
+            target = {"x": px, "y": self._grid_max_y + 2}
+            self._sweep_lateral = "E"
+        elif border == "W":
+            target = {"x": self._grid_min_x - 2, "y": py}
+            self._sweep_lateral = "N"
+        else:  # E
+            target = {"x": self._grid_max_x + 2, "y": py}
+            self._sweep_lateral = "N"
+
+        self._sweep_target = target
+        self._sweep_line_len = 30
+
+        dist = _distance(px, py, target["x"], target["y"], self._zone)
+        logger.info(
+            "🎯 SWEEP %s → frontière (%s,%s) dist=%s, lateral=%s",
+            border, target["x"], target["y"], dist, self._sweep_lateral,
+        )
+
+        self._set_path_to(target, "sweep_rush")
+
+    async def _explore(self) -> str:
+        """Frontier Chase : toujours rush vers la frontière inexploré la plus proche."""
         if not self._pos:
             return random.choice(_dirs())
 
-        px, py = self._pos["x"], self._pos["y"]
-        dir_scores: dict[str, int] = {}
+        # Path terminé → refresh grid et chercher la prochaine frontière
+        if not self._path:
+            self._sweep_dir = ""
+            await self._refresh_map_grid()
+            self._start_sweep()
+            if self._path:
+                d = self._path.pop(0)
+                self._last_dir = d
+                return d
 
-        for d in _dirs():
-            dx, dy = _DIR_VECTORS[d]
-            score = 0
-            # Scanner un cône de 15 cells de profondeur, 5 de largeur
-            for depth in range(1, 16):
-                cx = int(px + dx * depth)
-                cy = int(py + dy * depth)
-                # Vérifier la cellule centrale + 2 de chaque côté
-                for lateral in range(-2, 3):
-                    if dx != 0 and dy != 0:  # diagonale
-                        lx, ly = cx + lateral, cy
-                    elif dx != 0:  # E/W
-                        lx, ly = cx, cy + lateral
-                    else:  # N/S
-                        lx, ly = cx + lateral, cy
-                    if (lx, ly) in self._blocked_cells:
-                        continue
-                    cell = self._grid_cell(lx, ly)
-                    if cell == "0" or cell == "?":
-                        score += 1
-            dir_scores[d] = score
+        # Path en cours → suivre
+        if self._path:
+            d = self._path.pop(0)
+            self._last_dir = d
+            return d
 
-        if not dir_scores:
-            return random.choice(_dirs())
-
-        # Choisir la direction avec le plus de potentiel
-        best_dir = max(dir_scores, key=dir_scores.get)
-
-        # Anti-oscillation
-        if best_dir == _OPPOSITE.get(self._last_dir) and len(dir_scores) > 1:
-            sorted_dirs = sorted(dir_scores, key=dir_scores.get, reverse=True)
-            for alt in sorted_dirs:
-                if alt != _OPPOSITE.get(self._last_dir):
-                    best_dir = alt
-                    break
-
-        return best_dir
-
-    def _explore(self) -> str:
-        """Direction d'exploration — choisit la direction avec le plus d'inconnu."""
-        d = self._best_explore_direction()
-        self._last_dir = d
-        return d
-
-    def _spiral_fallback(self) -> str:
-        """Spirale de fallback si la grid ne révèle pas de zone inexplorée."""
-        if not self._pos:
-            return random.choice(_dirs())
-
-        cx, cy = self._spiral_center
-        px, py = self._pos["x"], self._pos["y"]
-
-        vx, vy = 0.0, 0.0
-        for _ in range(32):
-            self._spiral_angle += settings.spiral_angle_step
-            r = settings.spiral_growth * self._spiral_angle / (2.0 * math.pi)
-            tx = cx + r * math.cos(self._spiral_angle)
-            ty = cy + r * math.sin(self._spiral_angle)
-            vx, vy = tx - px, ty - py
-            if math.sqrt(vx * vx + vy * vy) >= 3.0:
-                break
-
-        d = _best_dir(vx, vy)
-        if d == _OPPOSITE.get(self._last_dir):
-            self._spiral_angle += settings.spiral_angle_step * 4
-            r = settings.spiral_growth * self._spiral_angle / (2.0 * math.pi)
-            tx = cx + r * math.cos(self._spiral_angle)
-            ty = cy + r * math.sin(self._spiral_angle)
-            d = _best_dir(tx - px, ty - py)
-
-        self._last_dir = d
-        return d
+        # Fallback : direction aléatoire (ne devrait pas arriver)
+        return random.choice(_dirs())
 
     # ══════════════════════════════════════════════════════════════
     # MOVE PROCESSING
@@ -565,7 +706,6 @@ class ExplorerAgent(BaseAgent):
         self._island_visits += 1
 
         self.memory.mark_island(pos)
-        self._spiral_center = (ix, iy)
         self._grid_refresh_counter = 30  # force refresh au prochain tick
 
         energy = data["energy"]
@@ -601,6 +741,17 @@ class ExplorerAgent(BaseAgent):
                     if tx is not None and ty is not None:
                         logger.info("🎯 Ordre repris après refuel → (%s,%s)", tx, ty)
                         self._set_path_to({"x": tx, "y": ty}, "order")
+                # Si un sweep était en pause → reprendre à la position sauvée
+                elif self._sweep_resume_pos:
+                    rp = self._sweep_resume_pos
+                    self._sweep_resume_pos = None
+                    dist = _distance(ix, iy, rp["x"], rp["y"], self._zone)
+                    if dist <= 25:  # raisonnable
+                        logger.info("📌 Reprise sweep → (%s,%s) dist=%s", rp["x"], rp["y"], dist)
+                        self._set_path_to(rp, "sweep_resume")
+                    else:
+                        logger.info("📌 Position de reprise trop loin (%s) — nouveau sweep (nearest frontier)", dist)
+                        self._sweep_dir = ""  # force nouveau sweep → _start_sweep cherchera la frontière la plus proche
 
             # Economy tick
             if self._island_visits % ECONOMY_TICK_EVERY == 0:

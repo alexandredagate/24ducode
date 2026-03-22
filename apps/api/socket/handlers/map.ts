@@ -9,7 +9,9 @@ export async function handleMap(
 ): Promise<ServerResponse> {
   switch (msg.command) {
     case "map:grid": {
+      const t0 = performance.now();
       const data = await getMapGrid();
+      console.log(`[perf:map:grid] ${(performance.now() - t0).toFixed(1)}ms (${data.islands.length} islands, ${data.grid.length} rows)`);
       return { command: "map:grid", status: "ok", data };
     }
 

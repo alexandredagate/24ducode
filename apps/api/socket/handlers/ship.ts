@@ -26,6 +26,7 @@ export async function handleShip(
     }
 
     case "ship:move": {
+      const t0 = performance.now();
       const codingGameId = requireAuth(socket);
       const direction = (msg.payload as { direction: Direction })?.direction;
       if (!direction || !VALID_DIRECTIONS.has(direction)) {
@@ -33,29 +34,34 @@ export async function handleShip(
           `Invalid direction "${direction}". Must be one of: ${[...VALID_DIRECTIONS].join(", ")}`
         );
       }
+
       // Énergie avant le move (pour détecter un refill)
+      let t1 = performance.now();
       const prevState = await getShipPosition(codingGameId);
       const energyBefore = prevState?.energy ?? 0;
+      const tGetPos = (performance.now() - t1).toFixed(1);
 
+      t1 = performance.now();
       const data = await moveShip(codingGameId, direction);
+      const tMoveApi = (performance.now() - t1).toFixed(1);
 
       // Si le bateau arrive sur SAND et que l'énergie a AUGMENTÉ → refuel confirmé
       if (data.position?.type === "SAND" && data.energy > energyBefore) {
         await markConfirmedRefuel(data.position.x, data.position.y);
-        console.log(`[ship] REFUEL CONFIRMÉ à (${data.position.x},${data.position.y}) energy ${energyBefore}→${data.energy}`);
       }
 
       // Vérifier si la position AVANT upsert est déjà KNOWN
-      // (évite que ALWAYS_KNOWN force KNOWN + valide dans la même requête)
       let wasKnownBeforeUpsert = false;
       if (data.position?.type === "SAND") {
         const cellBefore = await getCellAt(data.position.x, data.position.y);
         wasKnownBeforeUpsert = cellBefore?.discoveryStatus === "KNOWN";
       }
 
+      t1 = performance.now();
       const cellsToSave: Cell[] = [...(data.discoveredCells ?? [])];
       if (data.position) cellsToSave.push(data.position);
       await upsertCells(cellsToSave);
+      const tUpsert = (performance.now() - t1).toFixed(1);
 
       // Valider les découvertes seulement si on arrive sur une île qui
       // était DÉJÀ KNOWN avant ce move (pas juste rendue KNOWN par ALWAYS_KNOWN)
@@ -67,7 +73,10 @@ export async function handleShip(
         }
       }
 
+      t1 = performance.now();
       const mapGrid = await getMapGrid();
+      const tGrid = (performance.now() - t1).toFixed(1);
+
       io.emit("map:update", { command: "map:update", status: "ok", data: mapGrid });
 
       // Enrich position with note + discoveryStatus
@@ -83,12 +92,18 @@ export async function handleShip(
         }
       }
 
+      t1 = performance.now();
       await saveShipPosition(codingGameId, enrichedPosition, data.energy);
+      const tSavePos = (performance.now() - t1).toFixed(1);
+
       io.emit("ship:position", {
         position: enrichedPosition,
         energy: data.energy,
         ...(validated > 0 && { validated }),
       });
+
+      const tTotal = (performance.now() - t0).toFixed(1);
+      console.log(`[perf:move] total=${tTotal}ms | getPos=${tGetPos} moveApi=${tMoveApi} upsert=${tUpsert} grid=${tGrid} savePos=${tSavePos}`);
 
       return { command: "ship:move", status: "ok", data };
     }
