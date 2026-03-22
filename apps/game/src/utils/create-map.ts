@@ -177,15 +177,15 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
   voidMaster.isVisible = false;
 
   const voidMat = new StandardMaterial('voidMat', scene);
-  voidMat.diffuseColor = new Color3(0.15, 0.15, 0.18);
-  voidMat.emissiveColor = new Color3(0.03, 0.03, 0.05);
-  voidMat.specularColor = new Color3(0.4, 0.45, 0.5);
+  voidMat.diffuseColor = new Color3(0.04, 0.08, 0.18);
+  voidMat.emissiveColor = new Color3(0.02, 0.04, 0.10);
+  voidMat.specularColor = new Color3(0.3, 0.35, 0.5);
   voidMat.specularPower = 48;
   const voidFresnel = new FresnelParameters();
   voidFresnel.bias = 0.1;
   voidFresnel.power = 2.0;
-  voidFresnel.leftColor = new Color3(0.3, 0.3, 0.4);
-  voidFresnel.rightColor = new Color3(0, 0, 0);
+  voidFresnel.leftColor = new Color3(0.15, 0.25, 0.45);
+  voidFresnel.rightColor = new Color3(0, 0.02, 0.06);
   voidMat.emissiveFresnelParameters = voidFresnel;
   voidMat.backFaceCulling = false;
 
