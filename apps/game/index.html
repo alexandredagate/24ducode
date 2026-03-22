@@ -8,8 +8,31 @@
     <title>24h du Code — Exploration</title>
   </head>
   <body>
+    <!-- Login screen -->
+    <div id="loginScreen">
+      <div class="login-content">
+        <div class="login-ship">
+          <svg viewBox="0 0 120 80" width="120" height="80">
+            <path d="M20 50 L60 30 L100 50 L90 60 L30 60 Z" fill="#8B5E3C" stroke="#5a3a1e" stroke-width="2"/>
+            <path d="M60 30 L60 10" stroke="#5a3a1e" stroke-width="3" stroke-linecap="round"/>
+            <path d="M60 12 L85 28 L60 28 Z" fill="#f0e8d0" stroke="#c8b888" stroke-width="1"/>
+          </svg>
+        </div>
+        <h1 class="login-title">24h du Code</h1>
+        <p class="login-subtitle">Entrez le code PIN pour embarquer</p>
+        <div class="login-pin-row">
+          <input class="login-pin-input" type="text" inputmode="numeric" maxlength="1" autofocus />
+          <input class="login-pin-input" type="text" inputmode="numeric" maxlength="1" />
+          <input class="login-pin-input" type="text" inputmode="numeric" maxlength="1" />
+          <input class="login-pin-input" type="text" inputmode="numeric" maxlength="1" />
+        </div>
+        <p class="login-error" id="loginError"></p>
+        <button class="login-btn" id="loginBtn">Embarquer</button>
+      </div>
+    </div>
+
     <!-- Loading screen -->
-    <div id="loadingScreen">
+    <div id="loadingScreen" style="display:none;">
       <div class="loader-content">
         <div class="loader-ship">
           <svg viewBox="0 0 120 80" width="120" height="80">

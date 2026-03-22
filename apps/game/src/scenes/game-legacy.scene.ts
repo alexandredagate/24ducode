@@ -18,17 +18,11 @@ import skyboxNy from "../assets/skybox/ny.png?url";
 import skyboxNz from "../assets/skybox/nz.png?url";
 
 async function authenticatePlayer(): Promise<boolean> {
-    const stored = localStorage.getItem('codingGameId');
-    const codingGameId = stored || window.prompt('Enter your codingGameId:');
-    if (!codingGameId) return false;
-
     try {
-        await login(codingGameId);
-        localStorage.setItem('codingGameId', codingGameId);
+        await login('1234');
         return true;
     } catch (err) {
         console.error('[game] login failed:', err);
-        localStorage.removeItem('codingGameId');
         return false;
     }
 }
