@@ -3,7 +3,8 @@ import { type GameMap, TileType, type TileCell } from "./parse-map";
 import { createWaterTiles, addWaterTile, createRoundedBoxMesh } from "./water-tile";
 import { buildIslandMeshes } from "../map/IslandMeshBuilder";
 import { createEmojiBillboard, computeEmojiScale } from "./emoji-billboard";
-import { serverToGrid, type MapMeta } from "../services/map-converter";
+import { serverToGrid } from "../services/map-converter";
+import type { MapMeta } from "../services/socket";
 
 const TILE_SIZE = 1.0;
 const GAP = 0;
