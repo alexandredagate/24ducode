@@ -108,8 +108,8 @@ class ExplorerAgent(BaseAgent):
 
     async def loop(self) -> None:
         await self._init()
-        # Reset la DB et resync depuis player:details (seule source de vérité)
-        await self._reset_and_sync_db()
+        # Charger les îles confirmées depuis la DB confirmed_refuel
+        await self._load_confirmed_from_db()
         await self._refresh_map_grid()
 
         while True:
@@ -330,24 +330,20 @@ class ExplorerAgent(BaseAgent):
     # DB RESET & SYNC
     # ══════════════════════════════════════════════════════════════
 
-    async def _reset_and_sync_db(self) -> None:
-        """Reset les discoveryStatus en DB et resync depuis player:details."""
+    async def _load_confirmed_from_db(self) -> None:
+        """Charge les îles confirmées depuis la collection confirmed_refuel en DB."""
         self._bad_islands.clear()
-        logger.info("🔄 Reset DB discoveryStatus + blacklist vidée...")
-        # 1. Reset tout → DISCOVERED
-        reset_resp = await self._send("admin:reset-discovery")
-        if reset_resp.get("status") == "ok":
-            data = reset_resp.get("data", {})
-            logger.info("🔄 Reset: %s cells → DISCOVERED, %s → KNOWN (HOME)", data.get("reset"), data.get("home"))
-        else:
-            logger.warning("🔄 Reset échoué: %s", reset_resp.get("error"))
+        if not self.world or not self.world._db:
+            logger.info("🔄 Pas de DB — seul HOME dans refuel_islands")
+            return
 
-        # 2. Appeler player:details pour trigger le sync (les SAND sans discoveryStatus → KNOWN)
-        resp = await self._send("player:details")
-        if resp.get("status") == "ok":
-            islands = resp["data"].get("discoveredIslands", [])
-            known = [i for i in islands if i.get("islandState") == "KNOWN"]
-            logger.info("🔄 Sync: %s îles KNOWN depuis l'API game", len(known))
+        docs = await self.world._db.find_many("confirmed_refuel", {}, limit=10000)
+        for doc in docs:
+            self._refuel_islands.add((doc["x"], doc["y"]))
+        logger.info(
+            "🔄 %s îles refuel chargées depuis DB (+ HOME)",
+            len(self._refuel_islands),
+        )
 
     # ══════════════════════════════════════════════════════════════
     # PATH NAVIGATION
