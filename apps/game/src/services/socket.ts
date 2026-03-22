@@ -143,7 +143,7 @@ interface SocketResponse {
 }
 
 let socket: Socket | null = null;
-let accessToken: string | null = null;
+let accessToken: string | null = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjb2RpbmdnYW1lIiwic3ViIjoiNDEwYzhiNjQtOTEzZi00NmViLThiYzAtN2ExOTdjNGY1MDZkIiwicm9sZXMiOlsiVVNFUiJdfQ.hnkPxnsdQQFmwnggFKWfDRq5PPQrQ2wBkeqAYIFQklw';
 let refreshToken: string | null = null;
 let mapMeta: MapMeta | null = null;
 
@@ -158,7 +158,10 @@ const shipPositionListeners: ShipPositionCallback[] = [];
 export function connect(): Socket {
   if (socket) return socket;
 
-  socket = io(SERVER_URL, { transports: ['websocket'] });
+  socket = io(SERVER_URL, {
+    transports: ['websocket'],
+    auth: accessToken ? { token: accessToken } : undefined,
+  });
 
   socket.on('map:update', (data: SocketResponse) => {
     if (data.status === 'ok' && data.data) {
@@ -215,7 +218,9 @@ function sendCommand<T>(command: string, payload?: Record<string, unknown>): Pro
     };
 
     socket.on('response', handler);
-    socket.emit('message', payload ? { command, payload } : { command });
+    const msg = payload ? { command, payload } : { command };
+    if (accessToken) (msg as Record<string, unknown>).accessToken = accessToken;
+    socket.emit('message', msg);
   });
 }
 
