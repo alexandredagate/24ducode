@@ -93,6 +93,21 @@ export interface BrokerEvent {
   data: unknown;
 }
 
+export interface CapitainStatus {
+  orderId?: string;
+  status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED" | "CANCELLED";
+  message?: string;
+  target?: { x: number; y: number };
+  progress?: {
+    current?: { x: number; y: number };
+    target: { x: number; y: number };
+    stepsRemaining: number;
+    stepsTotal: number;
+    message?: string;
+  };
+  error?: string;
+}
+
 interface SocketResponse<T = unknown> {
   command: string;
   status: "ok" | "error";
@@ -123,6 +138,7 @@ interface UseSocketReturn {
   refreshMapGrid: () => Promise<void>;
   brokerEvents: BrokerEvent[];
   clearBrokerEvents: () => void;
+  capitainStatus: CapitainStatus | null;
   refreshAll: () => void;
   lastError: string | null;
 }
@@ -147,6 +163,7 @@ export function useSocket(): UseSocketReturn {
   const [thefts, setThefts] = useState<Theft[]>([]);
   const [brokerEvents, setBrokerEvents] = useState<BrokerEvent[]>([]);
   const brokerIdRef = useRef(0);
+  const [capitainStatus, setCapitainStatus] = useState<CapitainStatus | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
   // Refs stables pour les callbacks utilisés dans useEffect sans les mettre en deps
@@ -433,6 +450,14 @@ export function useSocket(): UseSocketReturn {
       }
     });
 
+    // capitain:status → real-time order progress from the bot
+    socket.on("capitain:status", (data: unknown) => {
+      console.log("[capitain:status] received:", data);
+      if (data != null && typeof data === "object") {
+        setCapitainStatus(data as CapitainStatus);
+      }
+    });
+
     // Auto-refresh du token si déjà connecté
     const storedRefreshToken = localStorage.getItem("refreshToken");
     if (storedRefreshToken) {
@@ -518,6 +543,7 @@ export function useSocket(): UseSocketReturn {
     thefts,
     brokerEvents,
     clearBrokerEvents: useCallback(() => setBrokerEvents([]), []),
+    capitainStatus,
     storageInfo,
     mapGrid,
     refreshMapGrid,

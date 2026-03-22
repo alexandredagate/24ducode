@@ -103,6 +103,8 @@ class ExplorerAgent(BaseAgent):
         # Economy
         self._marketplace: bool = False
         self._primary_resource: str | None = None
+        # Orders (commandes du capitaine)
+        self._current_order: dict | None = None
 
     # ══════════════════════════════════════════════════════════════
     # MAIN LOOP
@@ -123,6 +125,9 @@ class ExplorerAgent(BaseAgent):
                     await self.world.refresh()
                 await self._refresh_map_grid()
 
+            # ── CHECK ORDERS (commandes du capitaine) ──
+            await self._check_orders()
+
             direction = self._decide()
             self._energy_before_move = self._energy
             self._last_move_dir = direction
@@ -135,10 +140,13 @@ class ExplorerAgent(BaseAgent):
             self._moves += 1
             await self._on_move(direction, resp["data"])
 
+            # Si on exécute un ordre, update le progrès
+            if self._current_order and self._pos:
+                await self._update_order_progress()
+
             if self._moves % 50 == 0:
                 self._log_status()
 
-            # Délai = speed du ship (pas de floor à 1s, pas de marge inutile)
             await asyncio.sleep(self._ship_speed / 1000.0)
 
     # ══════════════════════════════════════════════════════════════
@@ -787,6 +795,120 @@ class ExplorerAgent(BaseAgent):
             if r.get("status") == "ok":
                 gold -= qty * price
                 logger.info("🏪 ACHAT %s x%s @ %s", res, qty, price)
+
+    # ══════════════════════════════════════════════════════════════
+    # ORDERS (commandes du capitaine via capitain:go-to)
+    # ══════════════════════════════════════════════════════════════
+
+    async def _check_orders(self) -> None:
+        """Poll les ordres en attente depuis la DB via l'API."""
+        # Ne pas checker si on exécute déjà un ordre
+        if self._current_order:
+            return
+
+        resp = await self._send("capitain:status")
+        if resp.get("status") != "ok" or not resp.get("data"):
+            return
+
+        order = resp["data"]
+        if order.get("status") != "PENDING":
+            return
+
+        # Nouvel ordre trouvé !
+        self._current_order = order
+        target = order.get("payload", {}).get("coordinates", {})
+        tx, ty = target.get("x"), target.get("y")
+
+        if tx is None or ty is None:
+            logger.warning("🎯 Ordre invalide (pas de coordonnées): %s", order.get("id"))
+            await self._send("capitain:progress", {
+                "orderId": order["id"],
+                "status": "FAILED",
+                "error": "Coordonnées manquantes",
+            })
+            self._current_order = None
+            return
+
+        logger.info(
+            "🎯 ══ ORDRE DU CAPITAINE ══ → (%s,%s) id=%s",
+            tx, ty, order["id"],
+        )
+
+        # Mettre l'ordre en IN_PROGRESS
+        dist = _distance(self._pos["x"], self._pos["y"], tx, ty, self._zone) if self._pos else 0
+        await self._send("capitain:progress", {
+            "orderId": order["id"],
+            "status": "IN_PROGRESS",
+            "message": f"En route vers ({tx},{ty}) — {dist} moves estimés",
+            "progress": {
+                "target": {"x": tx, "y": ty},
+                "current": {"x": self._pos["x"], "y": self._pos["y"]} if self._pos else None,
+                "stepsRemaining": dist,
+                "stepsTotal": dist,
+                "message": f"Départ — distance {dist}",
+            },
+        })
+
+        # Set le path vers la cible
+        self._set_path_to({"x": tx, "y": ty}, "order")
+
+    async def _update_order_progress(self) -> None:
+        """Met à jour le progrès de l'ordre en cours."""
+        if not self._current_order or not self._pos:
+            return
+
+        order = self._current_order
+        target = order.get("payload", {}).get("coordinates", {})
+        tx, ty = target.get("x"), target.get("y")
+        if tx is None or ty is None:
+            return
+
+        dist = _distance(self._pos["x"], self._pos["y"], tx, ty, self._zone)
+        total = order.get("_total_steps", dist)
+        if "_total_steps" not in order:
+            order["_total_steps"] = dist + len(self._path)
+
+        # Arrivé ?
+        if dist <= 1:
+            logger.info(
+                "🎯 ══ ORDRE COMPLÉTÉ ══ arrivé à (%s,%s)!",
+                tx, ty,
+            )
+            await self._send("capitain:progress", {
+                "orderId": order["id"],
+                "status": "COMPLETED",
+                "message": f"Arrivé à ({tx},{ty})",
+                "progress": {
+                    "target": {"x": tx, "y": ty},
+                    "current": {"x": self._pos["x"], "y": self._pos["y"]},
+                    "stepsRemaining": 0,
+                    "stepsTotal": total,
+                    "message": "Destination atteinte",
+                },
+            })
+            self._current_order = None
+            self._path.clear()
+            self._path_reason = ""
+            return
+
+        # Progrès périodique (toutes les 5 moves)
+        if self._moves % 5 == 0:
+            await self._send("capitain:progress", {
+                "orderId": order["id"],
+                "status": "IN_PROGRESS",
+                "message": f"En route — {dist} moves restants",
+                "progress": {
+                    "target": {"x": tx, "y": ty},
+                    "current": {"x": self._pos["x"], "y": self._pos["y"]},
+                    "stepsRemaining": dist,
+                    "stepsTotal": total,
+                    "message": f"En route — {dist} moves restants",
+                },
+            })
+
+        # Si le path est vide mais on n'est pas arrivé → recalculer
+        if not self._path and dist > 1:
+            self._set_path_to({"x": tx, "y": ty}, "order")
 
     # ══════════════════════════════════════════════════════════════
     # UTILS

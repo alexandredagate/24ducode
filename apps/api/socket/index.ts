@@ -9,9 +9,11 @@ import { handleTax } from "./handlers/tax";
 import { handleStorage } from "./handlers/storage";
 import { handleMarketplace } from "./handlers/marketplace";
 import { handleTheft } from "./handlers/theft";
+import { handleBot } from "./handlers/bot";
 import type { ClientCommand, ServerResponse, CommandName } from "types";
 
 const AUTH_COMMANDS = new Set<CommandName>(["auth:login", "auth:refresh", "auth:logout"]);
+const BOT_COMMANDS = new Set<string>(["capitain:go-to", "capitain:status", "capitain:orders", "capitain:cancel", "capitain:progress"]);
 const PLAYER_COMMANDS = new Set<CommandName>(["player:details", "player:resources"]);
 const SHIP_COMMANDS = new Set<CommandName>(["ship:build", "ship:move", "ship:location", "ship:next-level", "ship:upgrade"]);
 const MAP_COMMANDS = new Set<CommandName>(["map:grid", "admin:reset-discovery" as CommandName]);
@@ -66,6 +68,8 @@ export function createSocketServer(httpServer: HttpServer): SocketServer {
           response = await handleMarketplace(socket, msg);
         } else if (THEFT_COMMANDS.has(command)) {
           response = await handleTheft(socket, msg);
+        } else if (BOT_COMMANDS.has(command)) {
+          response = await handleBot(socket, msg, io);
         } else {
           throw new Error(`Unknown command: ${command}`);
         }

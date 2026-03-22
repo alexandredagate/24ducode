@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Direction, ShipNextLevel, PlayerDetails } from "../hooks/useSocket";
+import type { Direction, ShipNextLevel, PlayerDetails, CapitainStatus } from "../hooks/useSocket";
 
 interface ShipPanelProps {
   shipNextLevel: ShipNextLevel | null;
@@ -14,6 +14,7 @@ interface ShipPanelProps {
   onBuild: () => Promise<unknown>;
   onUpgrade: () => Promise<unknown>;
   onGoTo: (x: number, y: number) => Promise<unknown>;
+  capitainStatus: CapitainStatus | null;
 }
 
 type DirectionKey = Direction | null;
@@ -47,6 +48,7 @@ export function ShipPanel({
   onBuild,
   onUpgrade,
   onGoTo,
+  capitainStatus,
 }: ShipPanelProps) {
   const [moving, setMoving] = useState<Direction | null>(null);
   const [moveResult, setMoveResult] = useState<string | null>(null);
@@ -266,6 +268,61 @@ export function ShipPanel({
             goToResult.startsWith("Erreur") ? "bg-red-950 border border-red-800 text-red-300" : "bg-zinc-900 text-zinc-300"
           }`}>
             {goToResult}
+          </div>
+        )}
+
+        {/* Status temps réel du capitaine */}
+        {capitainStatus && (
+          <div className={`mt-3 rounded-lg border p-3 ${
+            capitainStatus.status === "COMPLETED" ? "bg-emerald-950 border-emerald-800" :
+            capitainStatus.status === "FAILED" || capitainStatus.status === "CANCELLED" ? "bg-red-950 border-red-800" :
+            capitainStatus.status === "IN_PROGRESS" ? "bg-blue-950 border-blue-800" :
+            "bg-zinc-900 border-zinc-700"
+          }`}>
+            <div className="flex items-center justify-between mb-1">
+              <span className={`text-xs font-semibold uppercase ${
+                capitainStatus.status === "COMPLETED" ? "text-emerald-400" :
+                capitainStatus.status === "FAILED" || capitainStatus.status === "CANCELLED" ? "text-red-400" :
+                capitainStatus.status === "IN_PROGRESS" ? "text-blue-400" :
+                "text-zinc-400"
+              }`}>
+                {capitainStatus.status === "PENDING" && "En attente..."}
+                {capitainStatus.status === "IN_PROGRESS" && "En route"}
+                {capitainStatus.status === "COMPLETED" && "Destination atteinte"}
+                {capitainStatus.status === "FAILED" && "Echec"}
+                {capitainStatus.status === "CANCELLED" && "Annule"}
+              </span>
+              {capitainStatus.progress?.target && (
+                <span className="text-xs text-zinc-500 font-mono">
+                  ({capitainStatus.progress.target.x}, {capitainStatus.progress.target.y})
+                </span>
+              )}
+            </div>
+            {capitainStatus.message && (
+              <p className="text-xs text-zinc-300">{capitainStatus.message}</p>
+            )}
+            {capitainStatus.progress && capitainStatus.status === "IN_PROGRESS" && (
+              <div className="mt-2">
+                <div className="flex justify-between text-xs text-zinc-500 mb-1">
+                  <span>
+                    {capitainStatus.progress.current && (
+                      <>Pos: ({capitainStatus.progress.current.x}, {capitainStatus.progress.current.y})</>
+                    )}
+                  </span>
+                  <span>{capitainStatus.progress.stepsRemaining} moves restants</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-zinc-700 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-blue-500 transition-all"
+                    style={{
+                      width: capitainStatus.progress.stepsTotal > 0
+                        ? `${Math.max(2, ((capitainStatus.progress.stepsTotal - capitainStatus.progress.stepsRemaining) / capitainStatus.progress.stepsTotal) * 100)}%`
+                        : "0%"
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

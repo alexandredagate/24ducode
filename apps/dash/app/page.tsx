@@ -45,6 +45,7 @@ export default function Home() {
     refreshMapGrid,
     brokerEvents,
     clearBrokerEvents,
+    capitainStatus,
     refreshAll,
     lastError,
   } = useSocket();
@@ -142,6 +143,7 @@ export default function Home() {
     onBuild: handleShipBuild,
     onUpgrade: handleShipUpgrade,
     onGoTo: handleGoTo,
+    capitainStatus,
   };
 
   return (
