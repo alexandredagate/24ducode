@@ -1,6 +1,6 @@
 import { Engine } from 'babylonjs';
 import './style.css';
-import { createScene } from './scenes/game.scene';
+import { createScene } from './scenes/game-canary.scene';
 
 const canvas = document.getElementById('renderCanvas') as HTMLCanvasElement;
 const engine = new Engine(canvas, true);
