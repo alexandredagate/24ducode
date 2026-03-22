@@ -70,8 +70,6 @@ export async function createBoat(scene: Scene): Promise<TransformNode> {
   const scaleFactor = (TILE_SIZE * 1) / maxExtent;
   root.scaling.scaleInPlace(scaleFactor);
 
-  // Wrapper pivot : le controller manipule ce noeud,
-  // le GLB root est enfant et hérite des transformations
   const pivot = new TransformNode('boatPivot', scene);
   root.parent = pivot;
 

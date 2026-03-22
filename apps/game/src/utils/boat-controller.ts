@@ -1,9 +1,15 @@
 import type { ArcRotateCamera, Engine, Mesh, Scene, TransformNode } from "babylonjs";
-import { StandardMaterial } from "babylonjs";
+import { Color4, DynamicTexture, ParticleSystem, StandardMaterial, Vector3 } from "babylonjs";
 import type { GameMap } from "./parse-map";
-import { moveShip, getPlayerDetails, type Direction, type ShipMoveResponse, type MapMeta } from "../services/socket";
+import { moveShip, type Direction, type ShipMoveResponse, type MapMeta } from "../services/socket";
 import { serverToGrid, gridToServer } from "../services/map-converter";
 import { createEmojiBillboard, computeEmojiScale } from "./emoji-billboard";
+import {
+  buildHud, fetchAndUpdatePlayerInfo,
+  fetchAndUpdateTaxes, fetchAndUpdateThefts, fetchAndUpdateMarketplace,
+  startTheftCountdown, setupBrokerActivityLog,
+} from "../ui/hud";
+import { createMinimap } from "../ui/minimap";
 
 const TILE_SIZE = 1.0;
 const MOVE_SPEED = 2.5;
@@ -48,6 +54,52 @@ export interface BoatController {
   dispose: () => void;
 }
 
+function createWakeParticles(scene: Scene, boat: TransformNode): ParticleSystem {
+  const texSize = 64;
+  const tex = new DynamicTexture('wakeTex', texSize, scene, false);
+  const ctx = tex.getContext();
+  ctx.clearRect(0, 0, texSize, texSize);
+  const grad = ctx.createRadialGradient(texSize / 2, texSize / 2, 0, texSize / 2, texSize / 2, texSize / 2);
+  grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+  grad.addColorStop(0.3, 'rgba(200,220,255,0.5)');
+  grad.addColorStop(0.7, 'rgba(150,200,255,0.15)');
+  grad.addColorStop(1, 'rgba(100,180,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, texSize, texSize);
+  tex.update(false);
+  tex.hasAlpha = true;
+
+  const ps = new ParticleSystem('wake', 120, scene);
+  ps.particleTexture = tex;
+  ps.emitter = boat as any;
+  ps.minEmitBox = new Vector3(-0.2, -0.1, -0.4);
+  ps.maxEmitBox = new Vector3(0.2, 0.05, -0.2);
+
+  ps.color1 = new Color4(0.7, 0.85, 1.0, 0.5);
+  ps.color2 = new Color4(0.5, 0.7, 0.9, 0.35);
+  ps.colorDead = new Color4(0.3, 0.5, 0.8, 0);
+
+  ps.minSize = 0.15;
+  ps.maxSize = 0.45;
+  ps.minLifeTime = 0.8;
+  ps.maxLifeTime = 2.0;
+  ps.emitRate = 25;
+
+  ps.direction1 = new Vector3(-0.15, 0.02, -0.3);
+  ps.direction2 = new Vector3(0.15, 0.08, -0.1);
+  ps.minEmitPower = 0.05;
+  ps.maxEmitPower = 0.15;
+
+  ps.gravity = new Vector3(0, -0.01, 0);
+  ps.minAngularSpeed = -0.5;
+  ps.maxAngularSpeed = 0.5;
+  ps.blendMode = ParticleSystem.BLENDMODE_ADD;
+
+  ps.start();
+  return ps;
+}
+
+
 export function createBoatController(
   boat: TransformNode,
   initialTileMeshes: Map<string, Mesh>,
@@ -59,12 +111,10 @@ export function createBoatController(
   camera: ArcRotateCamera,
   initialMeta: MapMeta | null,
 ): BoatController {
-  // Mutable references — updated by updateMap()
   let currentTileMeshes = initialTileMeshes;
   let mapMeta = initialMeta;
   let originX = -(initialMap.cols - 1) / 2;
   let originZ = -(initialMap.rows - 1) / 2;
-
   function toWorldX(col: number) { return originX + col * TILE_SIZE; }
   function toWorldZ(row: number) { return originZ + row * TILE_SIZE; }
 
@@ -85,31 +135,11 @@ export function createBoatController(
   // Economy state
   let money = -1;
   let resources: { type: string; quantity: number }[] = [];
-  let economyInterval: ReturnType<typeof setInterval> | null = null;
   let economyReady = false;
   let prevMoney = 0;
   let prevFer = 0;
   let prevBoi = 0;
   let prevCha = 0;
-
-  async function fetchPlayerEconomy() {
-    try {
-      const details = await getPlayerDetails();
-      money = details.money;
-      resources = details.resources;
-    } catch (err) {
-      console.warn('[boat] failed to fetch player details:', err);
-    }
-  }
-
-  function showDelta(panelEl: HTMLDivElement, delta: number, gainClass = 'hud-delta--gain'): void {
-    if (delta === 0) return;
-    const el = document.createElement('div');
-    el.className = delta > 0 ? `hud-delta ${gainClass}` : 'hud-delta hud-delta--loss';
-    el.textContent = delta > 0 ? `+${delta}` : `${delta}`;
-    panelEl.appendChild(el);
-    el.addEventListener('animationend', () => el.remove(), { once: true });
-  }
 
   // Death emoji state
   const DEATH_EMOJI_DURATION = 5;
@@ -121,7 +151,46 @@ export function createBoatController(
   boat.position.z = worldZ;
   boat.rotation.y = currentHeading;
 
-  // ─── Keyboard ───────────────────────────────────────
+  const wakePS = createWakeParticles(scene, boat);
+
+  const hud = buildHud();
+  let energyMax = 30;
+
+  // Minimap — fetches full map via map:grid and auto-updates via map:update
+  const minimap = createMinimap();
+  const minimapContainer = document.createElement('div');
+  minimapContainer.className = 'hud-bottom-left';
+  minimapContainer.appendChild(minimap.container);
+  hud.root.appendChild(minimapContainer);
+
+  // Initial minimap boat position
+  minimap.updateBoatPosition(startRow, startCol);
+
+  // Fetch all HUD data — sequential to avoid socket handler collisions
+  async function refreshAllData() {
+    try {
+      const details = await fetchAndUpdatePlayerInfo(hud);
+      if (details) {
+        money = details.money;
+        resources = details.resources;
+      }
+      await fetchAndUpdateTaxes(hud);
+      await fetchAndUpdateThefts(hud);
+      await fetchAndUpdateMarketplace(hud);
+    } catch {
+      // refresh failed silently
+    }
+  }
+
+  refreshAllData();
+  const dataInterval = setInterval(refreshAllData, 10_000);
+
+  // Theft countdown (1s tick)
+  const stopTheftCountdown = startTheftCountdown(hud);
+
+  // Broker events → activity log (chat)
+  const unsubBrokerLog = setupBrokerActivityLog(hud);
+
   const keys = new Set<string>();
 
   function onKeyDown(e: KeyboardEvent) {
@@ -137,7 +206,6 @@ export function createBoatController(
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
 
-  // ─── Server-driven movement ─────────────────────────
   async function tryMoveServer(direction: Direction) {
     if (pendingMove) return;
     targetHeading = HEADINGS[direction] + MODEL_ROTATION_OFFSET;
@@ -156,86 +224,21 @@ export function createBoatController(
 
       targetX = toWorldX(gridCol);
       targetZ = toWorldZ(gridRow);
-      fetchPlayerEconomy();
-    } catch (err) {
-      console.warn('[boat] move failed:', err);
+      refreshAllData();
+    } catch {
+      // move failed
     } finally {
       pendingMove = false;
     }
   }
 
-  // ─── HUD ────────────────────────────────────────────
-  let energyMax = 30;
+  let minimapTimer = 0;
 
-  const hud = document.createElement('div');
-  hud.style.cssText =
-    'position:fixed;top:14px;left:14px;z-index:10;pointer-events:none;display:flex;flex-direction:column;gap:8px;';
-
-  // Energy gauge
-  const gaugeWrap = document.createElement('div');
-  gaugeWrap.className = 'hud-gauge';
-
-  const gaugeLabel = document.createElement('span');
-  gaugeLabel.className = 'hud-gauge-label';
-  gaugeLabel.textContent = 'Énergie';
-
-  const gaugeTrack = document.createElement('div');
-  gaugeTrack.className = 'hud-gauge-track';
-
-  const gaugeFill = document.createElement('div');
-  gaugeFill.className = 'hud-gauge-fill';
-
-  const gaugeText = document.createElement('div');
-  gaugeText.className = 'hud-gauge-text';
-
-  gaugeTrack.append(gaugeFill, gaugeText);
-  gaugeWrap.append(gaugeLabel, gaugeTrack);
-
-  // Helper: toon panel with title + value
-  function createToonPanel(title: string): { el: HTMLDivElement; label: HTMLSpanElement } {
-    const el = document.createElement('div');
-    el.className = 'hud-panel';
-
-    const titleEl = document.createElement('div');
-    titleEl.className = 'hud-panel-title';
-    titleEl.textContent = title;
-
-    const label = document.createElement('span');
-    label.className = 'hud-panel-value';
-
-    el.append(titleEl, label);
-    return { el, label };
-  }
-
-  const zonePanel = createToonPanel('Zone');
-  const posPanel = createToonPanel('Position');
-
-  hud.append(gaugeWrap, zonePanel.el, posPanel.el);
-  document.body.appendChild(hud);
-
-  // ─── HUD top-right: economy panels in a row ───────
-  const hudRight = document.createElement('div');
-  hudRight.style.cssText =
-    'position:fixed;top:14px;right:14px;z-index:10;pointer-events:none;display:flex;flex-direction:row;gap:8px;';
-
-  const moneyPanel = createToonPanel('Or');
-  const ferPanel = createToonPanel('Feronium');
-  const boiPanel = createToonPanel('Boisium');
-  const chaPanel = createToonPanel('Charbonium');
-
-  hudRight.append(moneyPanel.el, ferPanel.el, boiPanel.el, chaPanel.el);
-  document.body.appendChild(hudRight);
-
-  // Start economy polling
-  fetchPlayerEconomy();
-  economyInterval = setInterval(fetchPlayerEconomy, 10_000);
-
-  // ─── Render loop ────────────────────────────────────
   const observer = scene.onBeforeRenderObservable.add(() => {
     const dt = engine.getDeltaTime() / 1000;
     time += dt;
 
-    // Input → server move (combine keys for diagonals)
+    // Input
     if (keys.size > 0 && !pendingMove) {
       const up = keys.has('ArrowUp');
       const down = keys.has('ArrowDown');
@@ -294,37 +297,51 @@ export function createBoatController(
     boat.rotation.x = waveRotX + tangageX;
     boat.rotation.z = waveRotZ + tangageZ;
 
-    // HUD — energy gauge + info panel
+    // Wake intensity
+    wakePS.emitRate = dist > 0.01 ? 50 : 12;
+
+    // Energy gauge
     if (energy >= 0) {
       if (energy > energyMax) energyMax = energy;
       const pct = Math.max(0, Math.min(energyMax, energy)) / energyMax;
-      gaugeFill.style.width = `${pct * 100}%`;
-      gaugeText.textContent = `Energy ${energy} / ${energyMax}`;
+      hud.energyGaugeFill.style.width = `${pct * 100}%`;
+      hud.energyGaugeText.textContent = `${energy} / ${energyMax}`;
+      hud.energyGaugeFill.classList.toggle('low', pct < 0.25);
+      if (pct > 0.5) {
+        hud.energyGaugeFill.style.background = 'linear-gradient(90deg, #30b060, #50d880, #60e890)';
+      } else if (pct > 0.25) {
+        hud.energyGaugeFill.style.background = 'linear-gradient(90deg, #d0a020, #e0c030, #f0d840)';
+      } else {
+        hud.energyGaugeFill.style.background = 'linear-gradient(90deg, #c02020, #e04040, #ff5050)';
+      }
     } else {
-      gaugeText.textContent = '';
-    }
-    zonePanel.label.textContent = currentZone >= 0 ? `Zone ${toRoman(currentZone)}` : 'Zone —';
-    if (mapMeta) {
-      const server = gridToServer(gridRow, gridCol, mapMeta);
-      posPanel.label.textContent = `x: ${server.x}  y: ${server.y}`;
-    } else {
-      posPanel.label.textContent = `${gridCol}, ${gridRow}`;
+      hud.energyGaugeText.textContent = '';
     }
 
-    // HUD — economy panels (top-right)
-    moneyPanel.label.textContent = money >= 0 ? `$ ${money}` : '$ --';
+    // Zone & position
+    hud.zoneLabel.textContent = currentZone >= 0 ? `Zone ${toRoman(currentZone)}` : '--';
+    if (mapMeta) {
+      const server = gridToServer(gridRow, gridCol, mapMeta);
+      hud.posLabel.textContent = `${server.x}, ${server.y}`;
+    } else {
+      hud.posLabel.textContent = `${gridCol}, ${gridRow}`;
+    }
+
+    // Resources
+    hud.moneyPanel.label.textContent = money >= 0 ? `${money}` : '--';
     const fer = resources.find(r => r.type === 'FERONIUM')?.quantity ?? 0;
     const boi = resources.find(r => r.type === 'BOISIUM')?.quantity ?? 0;
     const cha = resources.find(r => r.type === 'CHARBONIUM')?.quantity ?? 0;
-    ferPanel.label.textContent = `${fer}`;
-    boiPanel.label.textContent = `${boi}`;
-    chaPanel.label.textContent = `${cha}`;
+    hud.ferPanel.label.textContent = `${fer}`;
+    hud.boiPanel.label.textContent = `${boi}`;
+    hud.chaPanel.label.textContent = `${cha}`;
 
+    // Resource deltas
     if (economyReady) {
-      if (money !== prevMoney) showDelta(moneyPanel.el, money - prevMoney, 'hud-delta--gold');
-      if (fer   !== prevFer)   showDelta(ferPanel.el,   fer   - prevFer);
-      if (boi   !== prevBoi)   showDelta(boiPanel.el,   boi   - prevBoi);
-      if (cha   !== prevCha)   showDelta(chaPanel.el,   cha   - prevCha);
+      if (money !== prevMoney) hud.showDelta(hud.moneyPanel.el, money - prevMoney, 'hud-delta--gold');
+      if (fer   !== prevFer)   hud.showDelta(hud.ferPanel.el,   fer   - prevFer);
+      if (boi   !== prevBoi)   hud.showDelta(hud.boiPanel.el,   boi   - prevBoi);
+      if (cha   !== prevCha)   hud.showDelta(hud.chaPanel.el,   cha   - prevCha);
     } else if (money >= 0) {
       economyReady = true;
     }
@@ -333,9 +350,16 @@ export function createBoatController(
     prevBoi = boi;
     prevCha = cha;
 
-    // Death emoji — show ☠️ for 5s when energy drops to 0
+    // Minimap boat position (update every 0.5s to avoid perf hit)
+    minimapTimer += dt;
+    if (minimapTimer > 0.5) {
+      minimapTimer = 0;
+      minimap.updateBoatPosition(gridRow, gridCol);
+    }
+
+    // Death emoji
     if (energy === 0 && prevEnergy > 0 && !deathEmoji) {
-      deathEmoji = createEmojiBillboard("☠️", "deathEmoji", scene, 1.2);
+      deathEmoji = createEmojiBillboard("\u2620\uFE0F", "deathEmoji", scene, 1.2);
       deathEmojiTimer = DEATH_EMOJI_DURATION;
     }
     prevEnergy = energy;
@@ -349,7 +373,6 @@ export function createBoatController(
       const s = computeEmojiScale(camera.radius, 1.2);
       deathEmoji.scaling.setAll(s);
 
-      // Fade out in last second
       if (deathEmojiTimer <= 1) {
         (deathEmoji.material as StandardMaterial).alpha = Math.max(0, deathEmojiTimer);
       }
@@ -396,7 +419,6 @@ export function createBoatController(
     },
 
     updateMap(newMap: GameMap, newTileMeshes: Map<string, Mesh>, newMeta: MapMeta | null) {
-      // Sauvegarder la position world actuelle avant de changer l'origine
       const prevWX = worldX;
       const prevWZ = worldZ;
 
@@ -405,7 +427,6 @@ export function createBoatController(
       originX = -(newMap.cols - 1) / 2;
       originZ = -(newMap.rows - 1) / 2;
 
-      // Recalculer la position grille dans le nouveau système de coordonnées
       if (newMeta) {
         const server = gridToServer(gridRow, gridCol, mapMeta!);
         const pos = serverToGrid(server.x, server.y, newMeta);
@@ -413,22 +434,15 @@ export function createBoatController(
         gridCol = pos.col;
       }
 
-      // Calculer la nouvelle position world cible
       const newTargetX = toWorldX(gridCol);
       const newTargetZ = toWorldZ(gridRow);
-
-      // Calculer le décalage d'origine (la grille a peut-être bougé)
       const shiftX = newTargetX - prevWX;
       const shiftZ = newTargetZ - prevWZ;
 
-      // Si le décalage est petit (même position logique, juste un recentrage de grille),
-      // ajuster worldX/Z pour que le bateau ne saute pas
       if (Math.abs(shiftX) < 3 && Math.abs(shiftZ) < 3) {
-        // Animer vers la nouvelle position
         targetX = newTargetX;
         targetZ = newTargetZ;
       } else {
-        // Trop loin — snap immédiat (téléportation)
         worldX = newTargetX;
         worldZ = newTargetZ;
         targetX = newTargetX;
@@ -436,16 +450,23 @@ export function createBoatController(
         boat.position.x = worldX;
         boat.position.z = worldZ;
       }
+
+      // Refresh minimap boat position (map data auto-updates via socket)
+      minimap.updateBoatPosition(gridRow, gridCol);
     },
 
     dispose() {
       scene.onBeforeRenderObservable.remove(observer);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
-      hud.remove();
-      hudRight.remove();
-      if (economyInterval) clearInterval(economyInterval);
+      hud.dispose();
+      minimap.dispose();
+      clearInterval(dataInterval);
+      stopTheftCountdown();
+      unsubBrokerLog();
       if (deathEmoji) { deathEmoji.dispose(); deathEmoji = null; }
+      wakePS.stop();
+      wakePS.dispose();
     },
   };
 }

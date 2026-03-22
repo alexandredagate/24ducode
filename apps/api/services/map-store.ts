@@ -210,6 +210,8 @@ export interface IslandCell {
 
 export interface MapGrid {
   grid: string[];
+  /** Zone number per cell (0 = unknown), same dimensions as grid */
+  zoneGrid: string[];
   minX: number;
   maxX: number;
   minY: number;
@@ -259,7 +261,18 @@ export async function getMapGrid(): Promise<MapGrid> {
     }
   }
 
+  // Zone grid: each cell encodes the zone number (0 = unknown)
+  const zoneRows: number[][] = Array.from({ length: height }, () =>
+    Array.from({ length: width }, () => 0)
+  );
+  for (const c of cells) {
+    const row = c.y - minY;
+    const col = c.x - minX;
+    if (c.zone != null) zoneRows[row][col] = c.zone;
+  }
+
   const grid = rows.map((r) => r.join(""));
+  const zoneGrid = zoneRows.map((r) => r.join(""));
 
   const notes: CellNoteEntry[] = cells
     .filter((c) => c.note)
@@ -274,7 +287,7 @@ export async function getMapGrid(): Promise<MapGrid> {
 
   const confirmedRefuel = await getConfirmedRefuelCoords();
 
-  const result = { grid, minX, maxX, minY, maxY, width, height, notes, islands, confirmedRefuel };
+  const result = { grid, zoneGrid, minX, maxX, minY, maxY, width, height, notes, islands, confirmedRefuel };
   _gridCache = result;
   return result;
 }

@@ -1,6 +1,5 @@
 import { DynamicTexture, Mesh, MeshBuilder, StandardMaterial, type Scene } from "babylonjs";
 
-// ─── Config ──────────────────────────────────────────
 export const EMOJI_CONFIG = {
   TEXTURE_SIZE: 256,
   DEFAULT_PLANE_SIZE: 0.8,
@@ -10,15 +9,11 @@ export const EMOJI_CONFIG = {
   FONT: "180px serif",
 } as const;
 
-/**
- * Create a billboard plane mesh displaying an emoji via DynamicTexture.
- * The mesh always faces the camera (BILLBOARDMODE_ALL).
- */
 export function createEmojiBillboard(
   emoji: string,
   name: string,
   scene: Scene,
-  planeSize = EMOJI_CONFIG.DEFAULT_PLANE_SIZE,
+  planeSize: number = EMOJI_CONFIG.DEFAULT_PLANE_SIZE,
 ): Mesh {
   const size = EMOJI_CONFIG.TEXTURE_SIZE;
   const tex = new DynamicTexture(`${name}_tex`, size, scene, false);
@@ -47,10 +42,6 @@ export function createEmojiBillboard(
   return plane;
 }
 
-/**
- * Compute a scale factor for emoji billboards based on camera distance.
- * Further away → bigger emoji so it remains readable.
- */
 export function computeEmojiScale(cameraRadius: number, baseSize = 1): number {
   const raw = baseSize * (cameraRadius / EMOJI_CONFIG.DEFAULT_RADIUS);
   return Math.min(EMOJI_CONFIG.MAX_SCALE, Math.max(EMOJI_CONFIG.MIN_SCALE, raw));

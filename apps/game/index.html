@@ -1,12 +1,35 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>game</title>
+    <meta name="theme-color" content="#0a1628" />
+    <title>24h du Code — Exploration</title>
   </head>
   <body>
+    <!-- Loading screen -->
+    <div id="loadingScreen">
+      <div class="loader-content">
+        <div class="loader-ship">
+          <svg viewBox="0 0 120 80" width="120" height="80">
+            <path d="M20 50 L60 30 L100 50 L90 60 L30 60 Z" fill="#8B5E3C" stroke="#5a3a1e" stroke-width="2"/>
+            <path d="M60 30 L60 10" stroke="#5a3a1e" stroke-width="3" stroke-linecap="round"/>
+            <path d="M60 12 L85 28 L60 28 Z" fill="#f0e8d0" stroke="#c8b888" stroke-width="1"/>
+          </svg>
+        </div>
+        <div class="loader-waves">
+          <div class="loader-wave"></div>
+          <div class="loader-wave"></div>
+          <div class="loader-wave"></div>
+        </div>
+        <div class="loader-text">Chargement de la carte...</div>
+        <div class="loader-bar-track">
+          <div class="loader-bar-fill" id="loaderFill"></div>
+        </div>
+      </div>
+    </div>
+
     <canvas id="renderCanvas"></canvas>
     <script type="module" src="/src/main.ts"></script>
   </body>

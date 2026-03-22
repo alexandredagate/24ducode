@@ -74,14 +74,16 @@ function noise2d(x: number, z: number): number {
 }
 
 const WATER_PALETTE = [
-  { diffuse: new Color3(0.08, 0.38, 0.65), emissive: new Color3(0.02, 0.08, 0.16) },
-  { diffuse: new Color3(0.10, 0.42, 0.70), emissive: new Color3(0.02, 0.09, 0.18) },
-  { diffuse: new Color3(0.14, 0.48, 0.75), emissive: new Color3(0.03, 0.10, 0.20) },
-  { diffuse: new Color3(0.11, 0.44, 0.72), emissive: new Color3(0.02, 0.09, 0.18) },
-  { diffuse: new Color3(0.18, 0.55, 0.82), emissive: new Color3(0.04, 0.12, 0.22) },
+  { diffuse: new Color3(0.06, 0.32, 0.58), emissive: new Color3(0.01, 0.06, 0.14) },
+  { diffuse: new Color3(0.08, 0.36, 0.64), emissive: new Color3(0.02, 0.07, 0.16) },
+  { diffuse: new Color3(0.12, 0.42, 0.70), emissive: new Color3(0.02, 0.09, 0.18) },
+  { diffuse: new Color3(0.10, 0.38, 0.66), emissive: new Color3(0.02, 0.08, 0.17) },
+  { diffuse: new Color3(0.15, 0.48, 0.76), emissive: new Color3(0.03, 0.10, 0.20) },
+  { diffuse: new Color3(0.07, 0.34, 0.62), emissive: new Color3(0.01, 0.07, 0.15) },
+  { diffuse: new Color3(0.13, 0.44, 0.72), emissive: new Color3(0.03, 0.09, 0.19) },
   { diffuse: new Color3(0.09, 0.40, 0.68), emissive: new Color3(0.02, 0.08, 0.17) },
-  { diffuse: new Color3(0.15, 0.50, 0.78), emissive: new Color3(0.03, 0.11, 0.20) },
-  { diffuse: new Color3(0.12, 0.46, 0.74), emissive: new Color3(0.03, 0.10, 0.19) },
+  { diffuse: new Color3(0.05, 0.30, 0.55), emissive: new Color3(0.01, 0.05, 0.12) },
+  { diffuse: new Color3(0.17, 0.52, 0.80), emissive: new Color3(0.04, 0.11, 0.22) },
 ];
 
 interface FoamPatch {
@@ -137,8 +139,8 @@ export function createWaterTiles(scene: Scene, engine: Engine, cells: TileCell[]
     const mat = new StandardMaterial(`waterMat_${i}`, scene);
     mat.diffuseColor = pal.diffuse;
     mat.emissiveColor = pal.emissive;
-    mat.specularColor = new Color3(0.4, 0.45, 0.5);
-    mat.specularPower = 48;
+    mat.specularColor = new Color3(0.55, 0.6, 0.7);
+    mat.specularPower = 64;
     mat.emissiveFresnelParameters = fresnelParams;
     mat.backFaceCulling = false;
     return mat;

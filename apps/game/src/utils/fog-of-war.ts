@@ -10,8 +10,6 @@ export interface FogResult {
   positionMap: Map<string, ParticleSystem[]>; // "row_col" → PS at that position
 }
 
-// ─── Texture de fumée procédurale ─────────────────────
-
 function createSmokeTexture(scene: Scene): DynamicTexture {
   const size = 256;
   const tex = new DynamicTexture('smokeTex', size, scene, false);
@@ -34,8 +32,6 @@ function createSmokeTexture(scene: Scene): DynamicTexture {
 
   return tex;
 }
-
-// ─── Création d'un émetteur ───────────────────────────
 
 function createFogEmitter(
   name: string,
@@ -75,8 +71,6 @@ function createFogEmitter(
   return ps;
 }
 
-// ─── Échantillonnage spatial ──────────────────────────
-
 function samplePositions(positions: { pos: Vector3; row: number; col: number }[], spacing: number): { pos: Vector3; row: number; col: number }[] {
   const result: { pos: Vector3; row: number; col: number }[] = [];
   const used = new Set<string>();
@@ -90,8 +84,6 @@ function samplePositions(positions: { pos: Vector3; row: number; col: number }[]
 
   return result;
 }
-
-// ─── Export principal ─────────────────────────────────
 
 export function createFogOfWar(
   scene: Scene,
@@ -114,7 +106,6 @@ export function createFogOfWar(
   const allPS: ParticleSystem[] = [];
   const positionMap = new Map<string, ParticleSystem[]>();
 
-  // Void cells
   const voidPositions: { pos: Vector3; row: number; col: number }[] = [];
   for (const row of map.cells) {
     for (const cell of row) {
@@ -128,7 +119,6 @@ export function createFogOfWar(
     }
   }
 
-  // Bordure map
   const borderPositions: { pos: Vector3; row: number; col: number }[] = [];
   const BORDER = 3;
   for (let r = -BORDER; r < map.rows + BORDER; r++) {
@@ -142,7 +132,6 @@ export function createFogOfWar(
     }
   }
 
-  // Helper pour enregistrer un PS dans la positionMap (couvre les cellules proches)
   function registerPS(ps: ParticleSystem, row: number, col: number, radius: number) {
     const r = Math.ceil(radius);
     for (let dr = -r; dr <= r; dr++) {
@@ -155,7 +144,6 @@ export function createFogOfWar(
     }
   }
 
-  // Void emitters
   const sampledVoid = samplePositions(voidPositions, 1.5);
   for (let i = 0; i < sampledVoid.length; i++) {
     const sv = sampledVoid[i];
@@ -167,7 +155,6 @@ export function createFogOfWar(
     registerPS(ps, sv.row, sv.col, 2);
   }
 
-  // Border emitters
   const sampledBorder = samplePositions(borderPositions, 2.5);
   for (let i = 0; i < sampledBorder.length; i++) {
     const sb = sampledBorder[i];
@@ -182,24 +169,19 @@ export function createFogOfWar(
   return { systems: allPS, positionMap };
 }
 
-// ─── Retirer le fog à une position ────────────────────
-
 export function removeFogAt(fogResult: FogResult, row: number, col: number) {
   const key = `${row}_${col}`;
   const systems = fogResult.positionMap.get(key);
   if (!systems) return;
 
   for (const ps of systems) {
-    // Ne pas stop immédiatement — laisser les particules existantes mourir
     ps.emitRate = 0;
 
-    // Retirer de la liste globale après un délai (durée de vie max des particules)
     const idx = fogResult.systems.indexOf(ps);
     if (idx !== -1) {
       fogResult.systems.splice(idx, 1);
     }
 
-    // Auto-dispose après que les particules restantes meurent
     setTimeout(() => {
       ps.stop();
       ps.dispose();

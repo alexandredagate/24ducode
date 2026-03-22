@@ -81,8 +81,6 @@ function buildIslandMesh(
   for (const [r, c] of group.cells) {
     islandSet.add(`${r}_${c}`);
   }
-  // Une île est "confirmed" (verte) si au moins une de ses cellules est de type 2 (KNOWN)
-  // Type 3 (DISCOVERED) = orange (pas encore confirmée)
   const isConfirmedIsland = group.cells.some(([r, c]) => _grid[r][c] === 2);
 
   const MARGIN = 0.4;
@@ -146,7 +144,6 @@ function buildIslandMesh(
   ground.updateVerticesData(VertexBuffer.PositionKind, positions);
   ground.convertToFlatShadedMesh();
 
-  // Vertex colors basées sur la distance au bord
   const finalPos = ground.getVerticesData(VertexBuffer.PositionKind);
   if (finalPos) {
     const colors: number[] = [];
@@ -179,9 +176,8 @@ function buildIslandMesh(
       }
 
       if (!isConfirmedIsland) {
-        // DISCOVERED: couleurs orangées/dorées pour signaler "pas encore validée"
         if (edgeDist < 0.6) {
-          colors.push(0.95, 0.65, 0.25, 1); // sable orange
+          colors.push(0.95, 0.65, 0.25, 1);
         } else if (edgeDist < 0.9) {
           const t = (edgeDist - 0.6) / 0.3;
           colors.push(
@@ -191,12 +187,11 @@ function buildIslandMesh(
             1,
           );
         } else if (edgeDist < 1.5) {
-          colors.push(0.70, 0.50, 0.15, 1); // terre ocre
+          colors.push(0.70, 0.50, 0.15, 1);
         } else {
-          colors.push(0.60, 0.40, 0.10, 1); // terre sombre
+          colors.push(0.60, 0.40, 0.10, 1);
         }
       } else {
-        // KNOWN: couleurs vertes normales
         if (edgeDist < 0.6) {
           colors.push(0.85, 0.78, 0.55, 1);
         } else if (edgeDist < 0.9) {

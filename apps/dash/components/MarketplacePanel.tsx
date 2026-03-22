@@ -41,10 +41,10 @@ function formatSeconds(s: number): string {
   return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
 }
 
-const RESOURCE_COLORS: Record<string, string> = {
-  FERONIUM: "text-cyan-400",
-  BOISIUM: "text-emerald-400",
-  CHARBONIUM: "text-orange-400",
+const RESOURCE_META: Record<string, { color: string; label: string; accent: string; bg: string; border: string }> = {
+  FERONIUM: { color: "text-cyan-400", label: "Feronium", accent: "card-accent-cyan", bg: "rgba(0,229,255,0.04)", border: "rgba(0,229,255,0.12)" },
+  BOISIUM: { color: "text-emerald-400", label: "Boisium", accent: "card-accent-emerald", bg: "rgba(52,211,153,0.04)", border: "rgba(52,211,153,0.12)" },
+  CHARBONIUM: { color: "text-orange-400", label: "Charbonium", accent: "card-accent-orange", bg: "rgba(249,115,22,0.04)", border: "rgba(249,115,22,0.12)" },
 };
 
 interface MarketplacePanelProps {
@@ -113,10 +113,10 @@ export function MarketplacePanel({
     setMessage(null);
     try {
       await onPurchase(offer.id, qty);
-      setMessage(`Achat de ${qty} ${offer.resourceType} effectué.`);
+      setMessage(`Achat de ${qty} ${offer.resourceType} effectue.`);
       onRefresh();
     } catch (err) {
-      setMessage(`Erreur achat: ${err instanceof Error ? err.message : "inconnue"}`);
+      setMessage(`Erreur: ${err instanceof Error ? err.message : "inconnue"}`);
     } finally {
       setBuyingId(null);
     }
@@ -143,11 +143,11 @@ export function MarketplacePanel({
     try {
       await onUpdateOffer(editing.offerId, editing.resourceType, qty, price);
       saveCooldown(editing.offerId, Date.now());
-      setMessage(`Offre modifiée : ${qty} ${editing.resourceType} à ${price} OR/u.`);
+      setMessage(`Offre modifiee : ${qty} ${editing.resourceType} a ${price} OR/u.`);
       setEditing(null);
       onRefresh();
     } catch (err) {
-      setMessage(`Erreur modification: ${err instanceof Error ? err.message : "inconnue"}`);
+      setMessage(`Erreur: ${err instanceof Error ? err.message : "inconnue"}`);
     } finally {
       setUpdating(false);
     }
@@ -159,7 +159,7 @@ export function MarketplacePanel({
     try {
       await onDeleteOffer(offerId);
       clearCooldown(offerId);
-      setMessage("Offre supprimée.");
+      setMessage("Offre supprimee.");
       onRefresh();
     } catch (err) {
       setMessage(`Erreur: ${err instanceof Error ? err.message : "inconnue"}`);
@@ -178,12 +178,12 @@ export function MarketplacePanel({
     try {
       const result = await onCreateOffer(createResource, qty, price) as { id?: string } | null;
       if (result?.id) saveCooldown(result.id, Date.now());
-      setMessage(`Offre créée : ${qty} ${createResource} à ${price} OR/u.`);
+      setMessage(`Offre creee : ${qty} ${createResource} a ${price} OR/u.`);
       setCreateQty("");
       setCreatePrice("");
       onRefresh();
     } catch (err) {
-      setMessage(`Erreur création: ${err instanceof Error ? err.message : "inconnue"}`);
+      setMessage(`Erreur: ${err instanceof Error ? err.message : "inconnue"}`);
     } finally {
       setCreating(false);
     }
@@ -191,56 +191,97 @@ export function MarketplacePanel({
 
   if (!marketplaceDiscovered) {
     return (
-      <div className="rounded-xl glass p-8 text-center glow-purple">
-        <div className="text-4xl mb-3">&#128274;</div>
-        <h2 className="text-lg font-bold text-white mb-1">Marketplace verrouillée</h2>
-        <p className="text-zinc-400 text-sm">
-          Découvrez et validez l'île du Marché Central pour débloquer la marketplace.
+      <div className="card card-accent-purple p-10 text-center max-w-md mx-auto">
+        <div className="text-4xl mb-3 opacity-40">🔒</div>
+        <h2 className="text-base font-bold text-white mb-1">Marketplace verrouillee</h2>
+        <p className="text-zinc-500 text-sm">
+          Decouvrez et validez l'ile du Marche Central pour debloquer la marketplace.
         </p>
       </div>
     );
   }
 
+  const totalOffers = offers.length;
+  const totalVolume = othersOffers.reduce((s, o) => s + o.quantityIn * o.pricePerResource, 0);
+  const cheapestByType: Record<string, number> = {};
+  for (const o of othersOffers) {
+    if (!cheapestByType[o.resourceType] || o.pricePerResource < cheapestByType[o.resourceType]) {
+      cheapestByType[o.resourceType] = o.pricePerResource;
+    }
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-white section-header">Marketplace</h2>
+        <h2 className="text-lg font-bold text-white flex items-center gap-2.5">
+          <span className="w-8 h-8 rounded-lg flex items-center justify-center text-base"
+            style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.15)" }}>💰</span>
+          Marche
+        </h2>
         <button
           type="button"
           onClick={onRefresh}
-          className="text-xs px-3 py-1.5 rounded-lg glass hover:border-glow-cyan text-zinc-400 hover:text-zinc-200 transition-all"
+          className="px-4 py-2 rounded-xl text-xs font-medium btn-primary"
         >
           Actualiser
         </button>
       </div>
 
+      {/* Market stats */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="card p-3">
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Offres totales</div>
+          <div className="text-xl font-black text-white font-mono mt-1">{totalOffers}</div>
+        </div>
+        <div className="card p-3">
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Volume marche</div>
+          <div className="text-xl font-black text-yellow-400 font-mono mt-1">{totalVolume.toLocaleString()}</div>
+          <div className="text-[10px] text-zinc-600">OR</div>
+        </div>
+        {(["FERONIUM", "BOISIUM", "CHARBONIUM"] as ResourceType[]).map(r => {
+          const meta = RESOURCE_META[r];
+          return (
+            <div key={r} className="card p-3">
+              <div className={`text-[10px] uppercase tracking-wider ${meta?.color ?? "text-zinc-500"}`}>
+                {meta?.label ?? r}
+              </div>
+              <div className="text-xl font-black text-white font-mono mt-1">
+                {cheapestByType[r] != null ? `${cheapestByType[r]}` : "-"}
+              </div>
+              <div className="text-[10px] text-zinc-600">meilleur prix</div>
+            </div>
+          );
+        })}
+      </div>
+
       {message && (
-        <div className="px-3 py-2 rounded-lg glass text-zinc-300 text-sm glow-cyan">
+        <div className="px-4 py-2.5 rounded-xl text-sm toast" style={{ background: "rgba(0,229,255,0.04)", border: "1px solid rgba(0,229,255,0.1)", color: "#67e8f9" }}>
           {message}
         </div>
       )}
 
-      {/* Ligne 1 : Créer une offre + Mes offres côte à côte */}
+      {/* Create + My offers */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        {/* Créer une offre */}
-        <div className="rounded-xl glass p-4 card-3d">
-          <h3 className="text-sm font-semibold text-zinc-200 mb-3 section-header">Créer une offre</h3>
+        {/* Create offer */}
+        <div className="card p-5">
+          <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Nouvelle offre</h3>
           <form onSubmit={handleCreate} className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:items-end">
             <div>
-              <label htmlFor="create-resource" className="block text-xs text-zinc-500 mb-1">Ressource</label>
+              <label htmlFor="create-resource" className="block text-[10px] text-zinc-500 mb-1">Ressource</label>
               <select
                 id="create-resource"
                 value={createResource}
                 onChange={(e) => setCreateResource(e.target.value as ResourceType)}
                 className="px-3 py-2 rounded-lg text-sm input-gaming"
               >
-                <option value="FERONIUM">FERONIUM</option>
-                <option value="BOISIUM">BOISIUM</option>
-                <option value="CHARBONIUM">CHARBONIUM</option>
+                <option value="FERONIUM">Feronium</option>
+                <option value="BOISIUM">Boisium</option>
+                <option value="CHARBONIUM">Charbonium</option>
               </select>
             </div>
             <div>
-              <label htmlFor="create-qty" className="block text-xs text-zinc-500 mb-1">Quantité</label>
+              <label htmlFor="create-qty" className="block text-[10px] text-zinc-500 mb-1">Quantite</label>
               <input
                 id="create-qty"
                 type="number"
@@ -252,7 +293,7 @@ export function MarketplacePanel({
               />
             </div>
             <div>
-              <label htmlFor="create-price" className="block text-xs text-zinc-500 mb-1">Prix/u. (OR)</label>
+              <label htmlFor="create-price" className="block text-[10px] text-zinc-500 mb-1">Prix/u.</label>
               <input
                 id="create-price"
                 type="number"
@@ -267,172 +308,182 @@ export function MarketplacePanel({
             <button
               type="submit"
               disabled={creating || !createQty || !createPrice}
-              className="w-full sm:w-auto px-4 py-2 rounded-lg text-sm btn-gaming"
+              className="w-full sm:w-auto px-4 py-2 rounded-xl text-sm btn-gaming"
             >
-              {creating ? "..." : "Mettre en vente"}
+              {creating ? "..." : "Vendre"}
             </button>
           </form>
         </div>
 
-        {/* Mes offres */}
+        {/* My offers */}
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wide section-header">
+          <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
             Mes offres {myOffers.length > 0 && `(${myOffers.length})`}
           </h3>
           {myOffers.length === 0 ? (
-            <div className="rounded-xl glass p-4 text-center text-zinc-500 text-sm">
+            <div className="card p-4 text-center text-zinc-600 text-sm">
               Aucune offre en vente
             </div>
           ) : (
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {myOffers.map((offer) => (
-                <div key={offer.id} className="rounded-xl glass overflow-hidden card-3d">
-                  <div className="p-3 flex items-center justify-between gap-3">
-                    <div>
-                      <span className={`text-sm font-bold ${RESOURCE_COLORS[offer.resourceType] ?? "text-zinc-200"}`}>
-                        {offer.resourceType}
-                      </span>
-                      <div className="text-white font-semibold mt-0.5 font-mono text-sm">
-                        {offer.quantityIn.toLocaleString()} u. · {offer.pricePerResource} OR/u.
-                      </div>
-                      {remainingMap[offer.id] != null && (
-                        <div className="mt-1 flex items-center gap-1 text-xs text-amber-400 animate-glow-pulse">
-                          <span>&#9201;</span>
-                          <span>{formatSeconds(remainingMap[offer.id])}</span>
+              {myOffers.map((offer) => {
+                const meta = RESOURCE_META[offer.resourceType];
+                return (
+                  <div key={offer.id} className="card overflow-hidden">
+                    <div className="p-3 flex items-center justify-between gap-3">
+                      <div>
+                        <span className={`text-sm font-bold ${meta?.color ?? "text-zinc-200"}`}>
+                          {meta?.label ?? offer.resourceType}
+                        </span>
+                        <div className="text-white font-semibold mt-0.5 font-mono text-sm">
+                          {offer.quantityIn.toLocaleString()} u. · {offer.pricePerResource} OR/u.
                         </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => editing?.offerId === offer.id ? setEditing(null) : startEdit(offer)}
-                        disabled={!!remainingMap[offer.id] && editing?.offerId !== offer.id}
-                        className="px-2.5 py-1 rounded-lg glass hover:bg-white/10 text-zinc-200 text-xs font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                      >
-                        {editing?.offerId === offer.id ? "Annuler" : "Modifier"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(offer.id)}
-                        disabled={deletingId === offer.id || !!remainingMap[offer.id]}
-                        className="px-2.5 py-1 rounded-lg text-xs font-medium btn-gaming-red disabled:opacity-30 disabled:cursor-not-allowed"
-                      >
-                        {deletingId === offer.id ? "..." : "Suppr."}
-                      </button>
-                    </div>
-                  </div>
-
-                  {editing?.offerId === offer.id && (
-                    <form
-                      onSubmit={handleUpdate}
-                      className="border-t border-white/5 bg-black/20 px-3 py-2 flex flex-wrap gap-2 items-end"
-                    >
-                      <div>
-                        <label htmlFor={`edit-resource-${offer.id}`} className="block text-xs text-zinc-500 mb-1">Ressource</label>
-                        <select
-                          id={`edit-resource-${offer.id}`}
-                          value={editing.resourceType}
-                          onChange={(e) => setEditing((prev) => prev ? { ...prev, resourceType: e.target.value as ResourceType } : prev)}
-                          className="px-2 py-1 rounded-lg text-xs input-gaming"
+                        {remainingMap[offer.id] != null && (
+                          <div className="mt-1 text-[11px] text-amber-400 animate-glow-pulse font-mono">
+                            {formatSeconds(remainingMap[offer.id])}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => editing?.offerId === offer.id ? setEditing(null) : startEdit(offer)}
+                          disabled={!!remainingMap[offer.id] && editing?.offerId !== offer.id}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed text-zinc-400 hover:text-zinc-200"
+                          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
                         >
-                          <option value="FERONIUM">FERONIUM</option>
-                          <option value="BOISIUM">BOISIUM</option>
-                          <option value="CHARBONIUM">CHARBONIUM</option>
-                        </select>
+                          {editing?.offerId === offer.id ? "Annuler" : "Modifier"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(offer.id)}
+                          disabled={deletingId === offer.id || !!remainingMap[offer.id]}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-medium btn-gaming-red disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          {deletingId === offer.id ? "..." : "Suppr."}
+                        </button>
                       </div>
-                      <div>
-                        <label htmlFor={`edit-qty-${offer.id}`} className="block text-xs text-zinc-500 mb-1">Qté</label>
-                        <input
-                          id={`edit-qty-${offer.id}`}
-                          type="number"
-                          min="1"
-                          value={editing.qty}
-                          onChange={(e) => setEditing((prev) => prev ? { ...prev, qty: e.target.value } : prev)}
-                          className="w-20 px-2 py-1 rounded-lg text-xs input-gaming"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor={`edit-price-${offer.id}`} className="block text-xs text-zinc-500 mb-1">Prix/u.</label>
-                        <input
-                          id={`edit-price-${offer.id}`}
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          value={editing.price}
-                          onChange={(e) => setEditing((prev) => prev ? { ...prev, price: e.target.value } : prev)}
-                          className="w-20 px-2 py-1 rounded-lg text-xs input-gaming"
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        disabled={updating || !editing.qty || !editing.price}
-                        className="px-3 py-1 rounded-lg text-xs btn-gaming"
+                    </div>
+
+                    {editing?.offerId === offer.id && (
+                      <form
+                        onSubmit={handleUpdate}
+                        className="px-3 py-2 flex flex-wrap gap-2 items-end"
+                        style={{ borderTop: "1px solid rgba(255,255,255,0.04)", background: "rgba(0,0,0,0.15)" }}
                       >
-                        {updating ? "..." : "OK"}
-                      </button>
-                    </form>
-                  )}
-                </div>
-              ))}
+                        <div>
+                          <label htmlFor={`edit-resource-${offer.id}`} className="block text-[10px] text-zinc-500 mb-1">Ressource</label>
+                          <select
+                            id={`edit-resource-${offer.id}`}
+                            value={editing.resourceType}
+                            onChange={(e) => setEditing((prev) => prev ? { ...prev, resourceType: e.target.value as ResourceType } : prev)}
+                            className="px-2 py-1 rounded-lg text-xs input-gaming"
+                          >
+                            <option value="FERONIUM">Feronium</option>
+                            <option value="BOISIUM">Boisium</option>
+                            <option value="CHARBONIUM">Charbonium</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label htmlFor={`edit-qty-${offer.id}`} className="block text-[10px] text-zinc-500 mb-1">Qte</label>
+                          <input
+                            id={`edit-qty-${offer.id}`}
+                            type="number"
+                            min="1"
+                            value={editing.qty}
+                            onChange={(e) => setEditing((prev) => prev ? { ...prev, qty: e.target.value } : prev)}
+                            className="w-20 px-2 py-1 rounded-lg text-xs input-gaming"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor={`edit-price-${offer.id}`} className="block text-[10px] text-zinc-500 mb-1">Prix/u.</label>
+                          <input
+                            id={`edit-price-${offer.id}`}
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={editing.price}
+                            onChange={(e) => setEditing((prev) => prev ? { ...prev, price: e.target.value } : prev)}
+                            className="w-20 px-2 py-1 rounded-lg text-xs input-gaming"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={updating || !editing.qty || !editing.price}
+                          className="px-3 py-1 rounded-lg text-xs btn-gaming"
+                        >
+                          {updating ? "..." : "OK"}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       </div>
 
-      {/* Ligne 2 : Offres disponibles triées par ressource en 3 colonnes */}
+      {/* Available offers by resource */}
       <div>
-        <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-wide section-header mb-3">
+        <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
           Offres disponibles ({othersOffers.length})
         </h3>
         {othersOffers.length === 0 ? (
-          <div className="text-center text-zinc-500 text-sm py-6">
+          <div className="text-center text-zinc-600 text-sm py-8">
             Aucune offre en ce moment
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {(["FERONIUM", "BOISIUM", "CHARBONIUM"] as ResourceType[]).map((resType) => {
               const resOffers = othersOffers.filter((o) => o.resourceType === resType).sort((a, b) => a.pricePerResource - b.pricePerResource);
-              const colorClass = RESOURCE_COLORS[resType] ?? "text-zinc-200";
-              const glowClass = resType === "FERONIUM" ? "glow-cyan border-glow-cyan" : resType === "BOISIUM" ? "glow-emerald border-glow-emerald" : "glow-orange border-glow-orange";
+              const meta = RESOURCE_META[resType];
+              const bestPrice = resOffers.length > 0 ? resOffers[0].pricePerResource : null;
               return (
-                <div key={resType} className={`rounded-xl glass p-4 ${glowClass}`}>
-                  <h4 className={`text-sm font-bold mb-3 ${colorClass}`}>{resType}</h4>
+                <div key={resType} className={`card ${meta?.accent ?? ""} p-4`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className={`text-sm font-bold ${meta?.color ?? "text-zinc-200"}`}>{meta?.label ?? resType}</h4>
+                    <span className="text-[10px] text-zinc-600">{resOffers.length} offres</span>
+                  </div>
                   {resOffers.length === 0 ? (
-                    <div className="text-xs text-zinc-600 text-center py-4">Aucune offre</div>
+                    <div className="text-xs text-zinc-700 text-center py-6">Aucune offre</div>
                   ) : (
                     <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-                      {resOffers.map((offer) => (
-                        <div key={offer.id} className="rounded-lg bg-black/20 border border-white/5 p-3">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs text-zinc-500">{offer.owner.name}</span>
-                            <span className="text-xs text-zinc-400 font-mono">{offer.pricePerResource} OR/u.</span>
+                      {resOffers.map((offer) => {
+                        const isBest = offer.pricePerResource === bestPrice;
+                        const qty = buyQty[offer.id] ?? offer.quantityIn;
+                        const totalCost = qty * offer.pricePerResource;
+                        return (
+                          <div key={offer.id} className={`rounded-xl p-3 ${isBest ? "best-price" : ""}`}
+                            style={{ background: isBest ? "rgba(52,211,153,0.03)" : "rgba(0,0,0,0.2)", border: `1px solid ${isBest ? "rgba(52,211,153,0.1)" : "rgba(255,255,255,0.04)"}` }}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] text-zinc-500">{offer.owner.name}</span>
+                              <span className={`text-[11px] font-mono font-semibold ${isBest ? "text-emerald-400" : "text-zinc-400"}`}>{offer.pricePerResource} OR/u.</span>
+                            </div>
+                            <div className="text-white font-semibold font-mono text-sm">
+                              {offer.quantityIn.toLocaleString()} u.
+                            </div>
+                            <div className="flex items-center gap-2 mt-2">
+                              <input
+                                type="number"
+                                min="1"
+                                max={offer.quantityIn}
+                                value={qty}
+                                onChange={(e) => setBuyQty((prev) => ({ ...prev, [offer.id]: Number.parseInt(e.target.value, 10) }))}
+                                className="flex-1 min-w-0 px-2 py-1 rounded-lg text-xs text-right input-gaming"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleBuy(offer)}
+                                disabled={buyingId === offer.id}
+                                className="shrink-0 px-3 py-1 rounded-lg text-xs font-semibold btn-gaming-emerald"
+                              >
+                                {buyingId === offer.id ? "..." : `${totalCost.toLocaleString()} OR`}
+                              </button>
+                            </div>
                           </div>
-                          <div className="text-white font-semibold font-mono text-sm">
-                            {offer.quantityIn.toLocaleString()} u.
-                          </div>
-                          <div className="text-zinc-500 text-xs mb-2">
-                            Total : {(offer.quantityIn * offer.pricePerResource).toLocaleString()} OR
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min="1"
-                              max={offer.quantityIn}
-                              value={buyQty[offer.id] ?? offer.quantityIn}
-                              onChange={(e) => setBuyQty((prev) => ({ ...prev, [offer.id]: Number.parseInt(e.target.value, 10) }))}
-                              className="flex-1 min-w-0 px-2 py-1 rounded-lg text-xs text-right input-gaming"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleBuy(offer)}
-                              disabled={buyingId === offer.id}
-                              className="shrink-0 px-3 py-1 rounded-lg text-xs font-semibold btn-gaming-emerald"
-                            >
-                              {buyingId === offer.id ? "..." : "Acheter"}
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

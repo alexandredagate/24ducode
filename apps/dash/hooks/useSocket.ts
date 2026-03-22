@@ -64,6 +64,7 @@ export interface StorageInfo {
 
 export interface MapGrid {
   grid: string[];
+  zoneGrid?: string[];
   minX: number;
   maxX: number;
   minY: number;

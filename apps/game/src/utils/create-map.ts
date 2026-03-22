@@ -26,8 +26,6 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
   function getOriginX() { return -(currentMap.cols - 1) / 2; }
   function getOriginZ() { return -(currentMap.rows - 1) / 2; }
 
-  // ─── Première construction complète ─────────────────
-
   const waterCells: TileCell[] = [];
   for (const row of map.cells) {
     for (const cell of row) {
@@ -40,19 +38,13 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
   const waterResult = createWaterTiles(scene, engine, waterCells, getOriginX(), getOriginZ());
   let tileMeshes = waterResult.tileMeshMap;
 
-  // Pour le mesh builder, on traite 2 (KNOWN) et 3 (DISCOVERED) comme des îles
   const numericGrid: number[][] = map.cells.map(row =>
-    row.map(cell => {
-      const n = Number(cell.type);
-      // Garder 2 et 3 séparés pour que le mesh builder puisse les différencier
-      return n;
-    }),
+    row.map(cell => Number(cell.type)),
   );
 
   let currentConfirmedSet = confirmedSet ?? new Set<string>();
   const islandMeshes: Mesh[] = [...buildIslandMeshes(numericGrid, TILE_SIZE, GAP, scene, currentConfirmedSet)];
 
-  // ─── Discovered island markers (⁉️) ───────────────────
   const MARKER_Y = 1.8;
   const MARKER_BOB_SPEED = 1.5;
   const MARKER_BOB_AMP = 0.15;
@@ -86,7 +78,6 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
 
     for (const row of currentMap.cells) {
       for (const cell of row) {
-        // Marker sur les îles NON confirmées (pas de refuel confirmé)
         if (cell.type === TileType.Discovered) {
           addMarker(cell.row, cell.col);
         }
@@ -94,7 +85,6 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
     }
   }
 
-  // Initial markers — îles non confirmées
   for (const row of map.cells) {
     for (const cell of row) {
       if (cell.type === TileType.Discovered) {
@@ -103,7 +93,6 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
     }
   }
 
-  // ─── Home marker (🏠) at server coords (5, 3) ─────────
   let homeMarker: Mesh | null = null;
   const homeGrid = meta ? serverToGrid(5, 3, meta) : null;
 
@@ -121,7 +110,6 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
     updateHomeMarkerVisibility(map);
   }
 
-  // Animate markers + scale with camera distance
   let markerTime = 0;
   const markerObserver = scene.onBeforeRenderObservable.add(() => {
     markerTime += engine.getDeltaTime() / 1000;
@@ -178,7 +166,6 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
   oceanFloorMat.backFaceCulling = false;
   oceanFloor.material = oceanFloorMat;
 
-  // ─── Black tiles on Void cells within the visible circle ───
   const voidMeshes: Mesh[] = [];
   const voidKeys = new Set<string>();
 
@@ -251,15 +238,12 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
 
   rebuildFog();
 
-  // Tracker les cellules connues
   const knownCells = new Set<string>();
   for (const row of map.cells) {
     for (const cell of row) {
       knownCells.add(`${cell.row}_${cell.col}_${cell.type}`);
     }
   }
-
-  // ─── Mise à jour incrémentale ───────────────────────
 
   function applyUpdate(newMap: GameMap, newConfirmedSet?: Set<string>, clipCenter?: { row: number; col: number }) {
     if (newConfirmedSet) currentConfirmedSet = newConfirmedSet;
@@ -273,13 +257,11 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
     const newOriginX = getOriginX();
     const newOriginZ = getOriginZ();
 
-    // Si l'origine a changé (grille agrandie), il faut tout reconstruire
     if (Math.abs(newOriginX - oldOriginX) > 0.001 || Math.abs(newOriginZ - oldOriginZ) > 0.001) {
       fullRebuild(newMap);
       return;
     }
 
-    // Diff : trouver les cellules qui ont changé
     const newWaterCells: TileCell[] = [];
     let hasNewIslands = false;
     let hasRemovals = false;
@@ -307,7 +289,6 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
           continue;
         }
 
-        // Nouvelle cellule ou type changé — remove old entry for this position
         for (const k of knownCells) {
           if (k.startsWith(posKey + '_')) { knownCells.delete(k); break; }
         }
@@ -325,7 +306,6 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
       }
     }
 
-    // Ajouter les nouvelles water tiles incrémentalement
     for (const cell of newWaterCells) {
       const mesh = addWaterTile(waterResult, cell, newOriginX, newOriginZ);
       if (mesh) {
@@ -333,9 +313,7 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
       }
     }
 
-    // Reconstruire les îles si des cellules île ont changé ou des tiles ont été supprimées
     if (hasNewIslands || hasRemovals) {
-      // Dispose les anciennes îles
       for (const m of islandMeshes) m.dispose();
       islandMeshes.length = 0;
 
@@ -352,7 +330,6 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
   }
 
   function fullRebuild(newMap: GameMap) {
-    // Dispose tout sauf l'ocean floor
     for (const mesh of tileMeshes.values()) mesh.dispose();
     tileMeshes.clear();
     waterResult.dispose();
@@ -360,7 +337,6 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
     for (const m of islandMeshes) m.dispose();
     islandMeshes.length = 0;
 
-    // Recréer
     const newWaterCells: TileCell[] = [];
     for (const row of newMap.cells) {
       for (const cell of row) {

@@ -1,4 +1,4 @@
-import { ArcRotateCamera, Color3, CubeTexture, DirectionalLight, HemisphericLight, MeshBuilder, Scene, StandardMaterial, Texture, Vector3, type Engine } from "babylonjs";
+import { ArcRotateCamera, Color3, Color4, CubeTexture, DirectionalLight, GlowLayer, HemisphericLight, MeshBuilder, Scene, ShadowGenerator, StandardMaterial, Texture, Vector3, type Engine } from "babylonjs";
 import { TileType, clipMapToCircle } from "../utils/parse-map";
 import { createMap } from "../utils/create-map";
 import { createBoat } from "../utils/boat";
@@ -25,7 +25,6 @@ async function authenticatePlayer(): Promise<boolean> {
     try {
         await login(codingGameId);
         localStorage.setItem('codingGameId', codingGameId);
-        console.log('[game] authenticated');
         return true;
     } catch (err) {
         console.error('[game] login failed:', err);
@@ -37,6 +36,10 @@ async function authenticatePlayer(): Promise<boolean> {
 export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Promise<Scene> {
     const scene = new Scene(engine);
     scene.ambientColor = new Color3(0.05, 0.08, 0.15);
+    scene.clearColor = new Color4(0.04, 0.08, 0.16, 1);
+    scene.fogMode = Scene.FOGMODE_EXP2;
+    scene.fogDensity = 0.012;
+    scene.fogColor = new Color3(0.15, 0.25, 0.45);
 
     const camera = new ArcRotateCamera(
         'camera',
@@ -60,25 +63,29 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
     camera.lowerBetaLimit = 0.2;
     camera.upperBetaLimit = Math.PI / 2.2;
 
-    // Soleil directionnel — éclairage principal chaud
     const sun = new DirectionalLight('sun', new Vector3(-1, -2, -1), scene);
     sun.intensity = 1.2;
     sun.diffuse = new Color3(1.0, 0.95, 0.85);
     sun.specular = new Color3(1.0, 0.97, 0.9);
 
-    // Ambiante douce bleu ciel
     const ambient = new HemisphericLight('ambient', new Vector3(0, 1, 0), scene);
     ambient.intensity = 0.35;
     ambient.diffuse = new Color3(0.6, 0.7, 0.9);
     ambient.groundColor = new Color3(0.2, 0.25, 0.3);
 
-    // Fill light remontante — éclaire les côtés des îles
     const fill = new HemisphericLight('fill', new Vector3(0, -1, 0), scene);
     fill.intensity = 0.25;
     fill.diffuse = new Color3(0.8, 0.65, 0.40);
     fill.groundColor = new Color3(0.5, 0.40, 0.25);
 
-    // ─── Skybox ─────────────────────────────────────
+    const glow = new GlowLayer('glow', scene, { mainTextureSamples: 4 });
+    glow.intensity = 0.4;
+
+    const shadowGen = new ShadowGenerator(1024, sun);
+    shadowGen.useBlurExponentialShadowMap = true;
+    shadowGen.blurKernel = 16;
+    shadowGen.darkness = 0.4;
+
     const skybox = MeshBuilder.CreateBox('skybox', { size: 150 }, scene);
     const skyMat = new StandardMaterial('skyboxMat', scene);
     skyMat.backFaceCulling = false;
@@ -91,7 +98,6 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
     skybox.material = skyMat;
     skybox.infiniteDistance = true;
 
-    // ─── Connect & authenticate ──────────────────────
     let serverAvailable = false;
     let map;
 
@@ -99,17 +105,13 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
     try {
         connect();
         const authenticated = await authenticatePlayer();
-        if (!authenticated) {
-            console.warn('[game] not authenticated, using static map');
-        } else {
+        if (authenticated) {
             serverAvailable = true;
         }
 
         gridData = await requestMapGrid();
         map = serverGridToGameMap(gridData);
-        console.log('[game] server map loaded:', map.cols, 'x', map.rows);
     } catch (err) {
-        console.warn('[game] server unavailable, using static fallback', err);
         throw err;
     }
 
@@ -122,12 +124,9 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
     let currentMapResult = createMap(scene, engine, defaultClip, camera, initialMeta, initialConfirmed);
     let currentMeta: MapMeta | null = initialMeta;
 
-    // ─── Listen for server broadcasts ────────────────
-    onBrokerEvent((data) => {
-        console.log('[game] broker:event', data);
+    onBrokerEvent((_data) => {
     });
 
-    // ─── Resolve boat start position ─────────────────
     let startRow: number | null = null;
     let startCol: number | null = null;
     let startZone = -1;
@@ -140,9 +139,8 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
             startRow = pos.row;
             startCol = pos.col;
             if (location.position.zone != null) startZone = location.position.zone;
-            console.log('[game] ship position from ship:location:', startRow, startCol);
         } catch {
-            console.log('[game] no cached ship:location');
+            // no cached location
         }
 
         // Strategy 2: ship:next-level (calls external game API — has currentPosition)
@@ -152,24 +150,21 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
                 const pos = serverToGrid(ship.currentPosition.x, ship.currentPosition.y, currentMeta);
                 startRow = pos.row;
                 startCol = pos.col;
-                console.log('[game] ship position from ship:next-level:', startRow, startCol);
             } catch {
-                console.log('[game] no ship exists yet');
+                // no ship exists yet
             }
         }
 
         // Strategy 3: build a new ship
         if (startRow === null) {
             try {
-                console.log('[game] building ship...');
                 await buildShip();
                 const ship = await getShipNextLevel();
                 const pos = serverToGrid(ship.currentPosition.x, ship.currentPosition.y, currentMeta);
                 startRow = pos.row;
                 startCol = pos.col;
-                console.log('[game] ship built, position:', startRow, startCol);
-            } catch (err) {
-                console.warn('[game] could not build ship:', err);
+            } catch {
+                // could not build ship
             }
         }
     }
@@ -180,7 +175,6 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
         if (firstWater) {
             startRow = firstWater.row;
             startCol = firstWater.col;
-            console.log('[game] fallback: first water tile at', startRow, startCol);
         }
     }
 
@@ -193,6 +187,10 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
         currentMapResult = createMap(scene, engine, clippedMap, camera, initialMeta, initialConfirmed, VIEW_RADIUS);
 
         const boat = await createBoat(scene);
+        boat.getChildMeshes().forEach(m => {
+            shadowGen.addShadowCaster(m as any);
+        });
+
         const controller = createBoatController(
             boat, currentMapResult.tileMeshes, clippedMap,
             startRow, startCol,
@@ -224,8 +222,6 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
                 return;
             }
             lastGridHash = gridHash;
-
-            console.log('[game] map:update — incremental');
             const newFullMap = serverGridToGameMap(gridData);
             fullMap = newFullMap;
             currentMeta = { minX: gridData.minX, maxX: gridData.maxX, minY: gridData.minY, maxY: gridData.maxY };

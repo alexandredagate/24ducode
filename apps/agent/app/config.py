@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     low_fuel_ratio: float = 0.45
     spiral_angle_step: float = 0.7854  # pi/4
     spiral_growth: float = 1.5
-    enable_diagonal: bool = False
+    enable_diagonal: bool = True
     auto_pay_fines: bool = True
     agent_version: str = "v2"
 

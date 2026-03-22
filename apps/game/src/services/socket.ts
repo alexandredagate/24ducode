@@ -2,8 +2,6 @@ import { io, type Socket } from 'socket.io-client';
 
 const SERVER_URL = 'https://24ducode-api.fly.dev';
 
-// ─── Types (aligned with packages/types) ─────────────────
-
 export type Direction = 'N' | 'S' | 'E' | 'W' | 'NE' | 'NW' | 'SE' | 'SW';
 export type ResourceType = 'FERONIUM' | 'BOISIUM' | 'CHARBONIUM';
 
@@ -144,14 +142,10 @@ interface SocketResponse {
   error?: string;
 }
 
-// ─── State ───────────────────────────────────────────────
-
 let socket: Socket | null = null;
 let accessToken: string | null = null;
 let refreshToken: string | null = null;
 let mapMeta: MapMeta | null = null;
-
-// ─── Listener types ──────────────────────────────────────
 
 export type MapUpdateCallback = (data: MapGridData) => void;
 export type BrokerEventCallback = (data: unknown) => void;
@@ -161,22 +155,11 @@ const mapUpdateListeners: MapUpdateCallback[] = [];
 const brokerEventListeners: BrokerEventCallback[] = [];
 const shipPositionListeners: ShipPositionCallback[] = [];
 
-// ─── Connection ──────────────────────────────────────────
-
 export function connect(): Socket {
   if (socket) return socket;
 
   socket = io(SERVER_URL, { transports: ['websocket'] });
 
-  socket.on('connect', () => {
-    console.log('[socket] connected, id:', socket!.id);
-  });
-
-  socket.on('disconnect', (reason) => {
-    console.log('[socket] disconnected:', reason);
-  });
-
-  // Broadcast: map:update (emitted after every ship:move by any player)
   socket.on('map:update', (data: SocketResponse) => {
     if (data.status === 'ok' && data.data) {
       const gridData = data.data as MapGridData;
@@ -184,20 +167,16 @@ export function connect(): Socket {
     }
   });
 
-  // Broadcast: ship:position (emitted after every ship:move)
   socket.on('ship:position', (data: ShipLocationResponse) => {
     for (const cb of shipPositionListeners) cb(data);
   });
 
-  // Broadcast: broker:event (AMQP events from game server)
   socket.on('broker:event', (data: unknown) => {
     for (const cb of brokerEventListeners) cb(data);
   });
 
   return socket;
 }
-
-// ─── Event listeners ─────────────────────────────────────
 
 export function onMapUpdate(cb: MapUpdateCallback): () => void {
   mapUpdateListeners.push(cb);
@@ -213,8 +192,6 @@ export function onBrokerEvent(cb: BrokerEventCallback): () => void {
   brokerEventListeners.push(cb);
   return () => { const i = brokerEventListeners.indexOf(cb); if (i >= 0) brokerEventListeners.splice(i, 1); };
 }
-
-// ─── Generic command sender ──────────────────────────────
 
 function sendCommand<T>(command: string, payload?: Record<string, unknown>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -242,16 +219,9 @@ function sendCommand<T>(command: string, payload?: Record<string, unknown>): Pro
   });
 }
 
-// ─── Map metadata ────────────────────────────────────────
-
 export function getMapMeta(): MapMeta | null {
   return mapMeta;
 }
-
-// ─── Auth ────────────────────────────────────────────────
-// auth:login  → payload: { codingGameId }  → data: { accessToken, refreshToken }
-// auth:refresh → payload: { refreshToken } → data: { accessToken, refreshToken }
-// auth:logout  → no payload
 
 export async function login(codingGameId: string): Promise<AuthTokens> {
   const tokens = await sendCommand<AuthTokens>('auth:login', { codingGameId });
@@ -278,10 +248,6 @@ export function isAuthenticated(): boolean {
   return accessToken !== null;
 }
 
-// ─── Player ──────────────────────────────────────────────
-// player:details   → data: PlayerDetails
-// player:resources → data: Resource[]
-
 export function getPlayerDetails(): Promise<PlayerDetails> {
   return sendCommand<PlayerDetails>('player:details');
 }
@@ -289,13 +255,6 @@ export function getPlayerDetails(): Promise<PlayerDetails> {
 export function getPlayerResources(): Promise<Resource[]> {
   return sendCommand<Resource[]>('player:resources');
 }
-
-// ─── Ship ────────────────────────────────────────────────
-// ship:build      → data: { shipId }
-// ship:move       → payload: { direction } → data: ShipMoveResponse
-// ship:location   → data: { position: Cell, energy: number }  (from MongoDB cache)
-// ship:next-level → data: Ship
-// ship:upgrade    → payload: { level }
 
 export function buildShip(): Promise<ShipBuildResponse> {
   return sendCommand<ShipBuildResponse>('ship:build');
@@ -317,10 +276,6 @@ export function upgradeShip(level: number): Promise<void> {
   return sendCommand<void>('ship:upgrade', { level });
 }
 
-// ─── Tax ─────────────────────────────────────────────────
-// tax:list → payload?: { status } → data: Taxe[]
-// tax:pay  → payload: { taxId }
-
 export function getTaxes(status?: string): Promise<Taxe[]> {
   return sendCommand<Taxe[]>('tax:list', status ? { status } : undefined);
 }
@@ -329,10 +284,6 @@ export function payTax(taxId: string): Promise<void> {
   return sendCommand<void>('tax:pay', { taxId });
 }
 
-// ─── Storage ─────────────────────────────────────────────
-// storage:next-level → data: Storage
-// storage:upgrade    → data: Storage
-
 export function getStorageNextLevel(): Promise<Storage> {
   return sendCommand<Storage>('storage:next-level');
 }
@@ -340,14 +291,6 @@ export function getStorageNextLevel(): Promise<Storage> {
 export function upgradeStorage(): Promise<Storage> {
   return sendCommand<Storage>('storage:upgrade');
 }
-
-// ─── Marketplace ─────────────────────────────────────────
-// marketplace:offers        → data: Offer[]
-// marketplace:offer         → payload: { offerId } → data: Offer
-// marketplace:create-offer  → payload: { resourceType, quantityIn, pricePerResource } → data: Offer
-// marketplace:update-offer  → payload: { offerId, resourceType, quantityIn, pricePerResource } → data: Offer
-// marketplace:delete-offer  → payload: { offerId }
-// marketplace:purchase      → payload: { offerId, quantity } → data: Purchase
 
 export function getMarketplaceOffers(): Promise<Offer[]> {
   return sendCommand<Offer[]>('marketplace:offers');
@@ -373,10 +316,6 @@ export function purchaseMarketplaceOffer(offerId: string, quantity: number): Pro
   return sendCommand<void>('marketplace:purchase', { offerId, quantity });
 }
 
-// ─── Theft ───────────────────────────────────────────────
-// theft:list   → data: Theft[]
-// theft:attack → payload: { resourceType, moneySpent } → data: Theft
-
 export function getThefts(): Promise<Theft[]> {
   return sendCommand<Theft[]>('theft:list');
 }
@@ -384,9 +323,6 @@ export function getThefts(): Promise<Theft[]> {
 export function attackTheft(resourceType: ResourceType, moneySpent: number): Promise<Theft> {
   return sendCommand<Theft>('theft:attack', { resourceType, moneySpent });
 }
-
-// ─── Map ─────────────────────────────────────────────────
-// map:grid → data: MapGridData  (no auth required)
 
 export async function requestMapGrid(): Promise<MapGridData> {
   const data = await sendCommand<MapGridData>('map:grid');

@@ -2,20 +2,6 @@ import type { GameMap, TileCell, TileType } from '../utils/parse-map';
 import type { MapGridData } from './socket';
 export type { MapMeta } from './socket';
 
-/**
- * Converts the server grid to a GameMap.
- *
- * Server grid (map-store.ts):
- *   grid[0]        = y = minY (south)
- *   grid[height-1] = y = maxY (north)
- *   "0" = unknown, "1" = SEA, "2" = SAND KNOWN, "3" = SAND DISCOVERED
- *
- * Game rendering:
- *   row 0 → z = originZ (most negative Z = north on screen)
- *   So row 0 must be maxY (north).
- *
- * We reverse the grid rows so the visual orientation matches.
- */
 export function serverGridToGameMap(data: MapGridData): GameMap {
   const cols = data.width;
 
@@ -35,10 +21,6 @@ export function serverGridToGameMap(data: MapGridData): GameMap {
   return { rows, cols, cells };
 }
 
-// ─── Coordinate conversion ───────────────────────────────
-// Game row 0 = maxY (north), row increases southward
-// row = maxY - y,  col = x - minX
-
 export function serverToGrid(x: number, y: number, meta: MapMeta) {
   return { row: meta.maxY - y, col: x - meta.minX };
 }
@@ -47,9 +29,6 @@ export function gridToServer(row: number, col: number, meta: MapMeta) {
   return { x: col + meta.minX, y: meta.maxY - row };
 }
 
-/**
- * Convertit les coordonnées serveur confirmedRefuel en un Set de "row_col" pour le renderer.
- */
 export function buildConfirmedSet(
   confirmedRefuel: { x: number; y: number }[] | undefined,
   meta: MapMeta,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Direction, ShipNextLevel, PlayerDetails, CapitainStatus } from "../hooks/useSocket";
+import type { ShipNextLevel, PlayerDetails, CapitainStatus } from "../hooks/useSocket";
 
 interface ShipPanelProps {
   shipNextLevel: ShipNextLevel | null;
@@ -10,31 +10,16 @@ interface ShipPanelProps {
   currentPosition: { x: number; y: number; type: string; zone: number } | null;
   availableMove: number | null;
   playerResources: PlayerDetails["resources"] | null;
-  onMove: (direction: Direction) => Promise<unknown>;
   onBuild: () => Promise<unknown>;
   onUpgrade: () => Promise<unknown>;
   onGoTo: (x: number, y: number) => Promise<unknown>;
   capitainStatus: CapitainStatus | null;
 }
 
-type DirectionKey = Direction | null;
-
-const PAD: DirectionKey[][] = [
-  ["NW", "N", "NE"],
-  ["W",  null, "E"],
-  ["SW", "S", "SE"],
-];
-
-const DIR_LABELS: Record<Direction, string> = {
-  NW: "\u2196", N: "\u2191", NE: "\u2197",
-  W: "\u2190",          E: "\u2192",
-  SW: "\u2199", S: "\u2193", SE: "\u2198",
-};
-
-const RESOURCE_COLORS: Record<string, string> = {
-  FERONIUM: "text-cyan-400",
-  BOISIUM: "text-emerald-400",
-  CHARBONIUM: "text-orange-400",
+const RESOURCE_META: Record<string, { color: string; label: string }> = {
+  FERONIUM: { color: "text-cyan-400", label: "Feronium" },
+  BOISIUM: { color: "text-emerald-400", label: "Boisium" },
+  CHARBONIUM: { color: "text-orange-400", label: "Charbonium" },
 };
 
 export function ShipPanel({
@@ -44,14 +29,11 @@ export function ShipPanel({
   currentPosition,
   availableMove,
   playerResources,
-  onMove,
   onBuild,
   onUpgrade,
   onGoTo,
   capitainStatus,
 }: ShipPanelProps) {
-  const [moving, setMoving] = useState<Direction | null>(null);
-  const [moveResult, setMoveResult] = useState<string | null>(null);
   const [upgrading, setUpgrading] = useState(false);
   const [upgradeResult, setUpgradeResult] = useState<string | null>(null);
   const [goToX, setGoToX] = useState("");
@@ -59,28 +41,12 @@ export function ShipPanel({
   const [goToSending, setGoToSending] = useState(false);
   const [goToResult, setGoToResult] = useState<string | null>(null);
 
-  async function handleMove(dir: Direction) {
-    setMoving(dir);
-    setMoveResult(null);
-    try {
-      const res = await onMove(dir);
-      const data = res as { energy: number; position: { x: number; y: number } } | null;
-      if (data) {
-        setMoveResult(`\u2192 (${data.position.x}, ${data.position.y}) | Énergie: ${data.energy}`);
-      }
-    } catch (err) {
-      setMoveResult(`Erreur: ${err instanceof Error ? err.message : "inconnue"}`);
-    } finally {
-      setMoving(null);
-    }
-  }
-
   async function handleUpgrade() {
     setUpgrading(true);
     setUpgradeResult(null);
     try {
       await onUpgrade();
-      setUpgradeResult("Bateau amélioré avec succès !");
+      setUpgradeResult("Bateau ameliore !");
     } catch (err) {
       setUpgradeResult(`Erreur: ${err instanceof Error ? err.message : "inconnue"}`);
     } finally {
@@ -90,41 +56,50 @@ export function ShipPanel({
 
   if (!shipExists) {
     return (
-      <div className="rounded-xl glass glow-blue p-6 space-y-4 card-3d">
-        <h2 className="text-lg font-bold text-white section-header">Bateau</h2>
-        <p className="text-zinc-400 text-sm">Aucun bateau construit.</p>
-        <button
-          type="button"
-          onClick={() => onBuild()}
-          className="px-4 py-2 rounded-lg text-sm btn-gaming"
-        >
-          Construire le bateau
-        </button>
+      <div className="card card-accent-blue p-6 space-y-4">
+        <div className="text-center">
+          <div className="text-4xl mb-3 opacity-40">⛵</div>
+          <h2 className="text-base font-bold text-white mb-1">Aucun bateau</h2>
+          <p className="text-zinc-500 text-sm mb-4">Construisez votre premier navire pour partir en mer.</p>
+          <button
+            type="button"
+            onClick={() => onBuild()}
+            className="px-5 py-2.5 rounded-xl text-sm btn-gaming"
+          >
+            Construire le bateau
+          </button>
+        </div>
       </div>
     );
   }
 
   const currentLevelId = shipNextLevel?.level ? shipNextLevel.level.id - 1 : null;
-
   const resourceMap = new Map<string, number>(playerResources?.map((r) => [r.type, r.quantity]) ?? []);
   const costEntries = shipNextLevel?.costResources
     ? (Object.entries(shipNextLevel.costResources) as [string, number][])
     : [];
   const canUpgrade = costEntries.length > 0 && costEntries.every(([res, cost]) => (resourceMap.get(res) ?? 0) >= cost);
 
+  const energyPct = availableMove != null ? Math.min(100, (availableMove / 100) * 100) : 0;
+  const energyColor = availableMove === 0 ? "bg-red-500" : (availableMove ?? 0) <= 5 ? "bg-yellow-400" : "bg-cyan-400";
+
   return (
     <>
-      {/* État actuel */}
-      <div className="rounded-xl glass glow-blue p-5 card-3d hud-corner xl:order-3">
+      {/* Current state */}
+      <div className="card card-accent-blue p-5 xl:order-3">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-white section-header">Bateau</h2>
+          <h2 className="text-sm font-bold text-white flex items-center gap-2">
+            <span className="opacity-50">⛵</span> Bateau
+          </h2>
           {currentLevelId != null ? (
-            <span className="px-2.5 py-1 rounded-full bg-blue-950/50 border border-blue-800/50 text-blue-300 text-xs font-semibold glow-blue">
-              Niveau {currentLevelId}
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)", color: "#60a5fa" }}>
+              Niv. {currentLevelId}
             </span>
           ) : (
-            <span className="px-2.5 py-1 rounded-full bg-yellow-950/50 border border-yellow-800/50 text-yellow-300 text-xs font-semibold glow-yellow">
-              Niveau max
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.2)", color: "#fbbf24" }}>
+              MAX
             </span>
           )}
         </div>
@@ -132,92 +107,52 @@ export function ShipPanel({
         {/* Position */}
         {currentPosition ? (
           <div className="flex items-center gap-3 mb-4">
-            <div className="px-3 py-1.5 rounded-lg bg-black/30 border border-white/10 text-sm text-cyan-300 font-mono" style={{ textShadow: "0 0 8px rgba(0,240,255,0.3)" }}>
+            <div className="px-3 py-1.5 rounded-lg text-sm font-mono font-bold"
+              style={{ background: "rgba(0,229,255,0.06)", border: "1px solid rgba(0,229,255,0.12)", color: "#00e5ff", textShadow: "0 0 6px rgba(0,229,255,0.2)" }}>
               ({currentPosition.x}, {currentPosition.y})
             </div>
-            <div className="text-xs text-zinc-500">
-              {currentPosition.type} · zone {currentPosition.zone}
+            <div className="text-xs text-zinc-600">
+              {currentPosition.type} · Z{currentPosition.zone}
             </div>
           </div>
         ) : (
-          <div className="mb-4 px-3 py-2 rounded-lg bg-black/20 text-zinc-500 text-xs">
-            Position inconnue — effectuez un déplacement
+          <div className="mb-4 px-3 py-2 rounded-lg text-zinc-600 text-xs" style={{ background: "rgba(0,0,0,0.15)" }}>
+            Position inconnue
           </div>
         )}
 
-        {/* Énergie */}
+        {/* Energy */}
         {availableMove != null ? (
           <div>
-            <div className="flex justify-between text-xs text-zinc-400 mb-1.5">
-              <span>Énergie (mouvements restants)</span>
-              <span className={`font-mono ${availableMove <= 5 ? "text-red-400 font-bold" : "text-cyan-300"}`}>
+            <div className="flex justify-between text-xs mb-1.5">
+              <span className="text-zinc-500">Energie</span>
+              <span className={`font-mono font-bold ${availableMove <= 5 ? "text-red-400" : "text-cyan-400"}`}>
                 {availableMove}
               </span>
             </div>
-            <div className="h-2.5 rounded-full bg-black/30 overflow-hidden">
+            <div className="energy-gauge">
               <div
-                className={`h-full rounded-full transition-all progress-scan ${
-                  availableMove === 0 ? "bg-red-500"
-                  : availableMove <= 5 ? "bg-yellow-400"
-                  : "bg-emerald-400"
-                }`}
-                style={{ width: availableMove === 0 ? "2px" : `${Math.min((availableMove / 100) * 100, 100)}%` }}
+                className={`energy-gauge-fill progress-scan ${energyColor}`}
+                style={{ width: availableMove === 0 ? "2px" : `${energyPct}%` }}
               />
             </div>
-            {availableMove === 0 && <p className="text-red-400 text-xs mt-1">Énergie épuisée — bateau immobilisé !</p>}
-            {availableMove > 0 && availableMove <= 5 && <p className="text-yellow-400 text-xs mt-1">Énergie critique — rentrez au port !</p>}
+            {availableMove === 0 && <p className="text-red-400 text-[11px] mt-1.5">Energie epuisee !</p>}
+            {availableMove > 0 && availableMove <= 5 && <p className="text-yellow-400 text-[11px] mt-1.5">Energie critique</p>}
           </div>
         ) : (
-          <div className="text-xs text-zinc-500">Énergie inconnue — effectuez un déplacement</div>
+          <div className="text-xs text-zinc-600">Energie inconnue</div>
         )}
       </div>
 
-      {/* Pad directionnel */}
-      <div className="rounded-xl glass glow-blue p-5 card-3d xl:order-4">
-        <h3 className="text-sm font-semibold text-zinc-300 mb-4 section-header">Déplacer le bateau</h3>
-        <div className="flex flex-col items-center gap-1">
-          {PAD.map((row, ri) => (
-            <div key={`row-${PAD[ri]?.join("")}`} className="flex gap-1">
-              {row.map((dir) =>
-                dir === null ? (
-                  <div key="center" className="w-12 h-12 flex items-center justify-center">
-                    <div className="w-2 h-2 rounded-full bg-cyan-500/30" style={{ boxShadow: "0 0 6px rgba(0,240,255,0.3)" }} />
-                  </div>
-                ) : (
-                  <button
-                    key={dir}
-                    type="button"
-                    onClick={() => handleMove(dir)}
-                    disabled={moving !== null || availableMove === 0 || availableMove == null}
-                    className={`w-12 h-12 rounded-lg text-lg font-bold transition-all ${
-                      moving === dir
-                        ? "bg-cyan-500/30 text-cyan-300 scale-95 glow-cyan"
-                        : "glass hover:bg-white/10 text-zinc-200 active:scale-95"
-                    } disabled:opacity-30 disabled:cursor-not-allowed`}
-                  >
-                    {DIR_LABELS[dir]}
-                  </button>
-                )
-              )}
-            </div>
-          ))}
-        </div>
-        {moveResult && (
-          <div className="mt-3 px-3 py-2 rounded-lg bg-black/30 border border-white/5 text-cyan-300 text-xs font-mono">
-            {moveResult}
-          </div>
-        )}
-      </div>
-
-      {/* Navigation automatique */}
-      <div className="rounded-xl glass glow-blue p-5 card-3d xl:order-7">
-        <h3 className="text-sm font-semibold text-zinc-300 mb-3 section-header">Cap automatique</h3>
-        <p className="text-xs text-zinc-500 mb-3">
-          Ordonnez au capitaine de naviguer vers des coordonnées précises.
+      {/* Auto navigation */}
+      <div className="card card-accent-blue p-5 xl:order-7">
+        <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Cap automatique</h3>
+        <p className="text-[11px] text-zinc-600 mb-3">
+          Ordonnez au capitaine de naviguer vers des coordonnees.
         </p>
         <div className="flex items-end gap-2">
           <div className="flex-1">
-            <label className="block text-xs text-zinc-400 mb-1">X</label>
+            <label className="block text-[10px] text-zinc-500 mb-1 uppercase">X</label>
             <input
               type="number"
               value={goToX}
@@ -227,7 +162,7 @@ export function ShipPanel({
             />
           </div>
           <div className="flex-1">
-            <label className="block text-xs text-zinc-400 mb-1">Y</label>
+            <label className="block text-[10px] text-zinc-500 mb-1 uppercase">Y</label>
             <input
               type="number"
               value={goToY}
@@ -243,76 +178,86 @@ export function ShipPanel({
               const x = Number(goToX);
               const y = Number(goToY);
               if (Number.isNaN(x) || Number.isNaN(y)) {
-                setGoToResult("Coordonnées invalides");
+                setGoToResult("Coordonnees invalides");
                 return;
               }
               setGoToSending(true);
               setGoToResult(null);
               try {
                 await onGoTo(x, y);
-                setGoToResult(`Cap fixé vers (${x}, ${y})`);
+                setGoToResult(`Cap vers (${x}, ${y})`);
               } catch (err) {
                 setGoToResult(`Erreur: ${err instanceof Error ? err.message : "inconnue"}`);
               } finally {
                 setGoToSending(false);
               }
             }}
-            className="px-4 py-2 rounded-lg text-sm font-semibold btn-gaming whitespace-nowrap"
+            className="px-4 py-2 rounded-lg text-sm font-semibold btn-primary whitespace-nowrap"
           >
             {goToSending ? "..." : "Go"}
           </button>
         </div>
         {goToResult && (
-          <div className={`mt-2 px-3 py-2 rounded-lg text-xs font-mono ${
-            goToResult.startsWith("Erreur") ? "bg-red-950/30 border border-red-800/50 text-red-300 glow-red" : "bg-black/20 border border-white/5 text-cyan-300"
-          }`}>
+          <div className={`mt-2 px-3 py-2 rounded-lg text-xs font-mono toast ${
+            goToResult.startsWith("Erreur") ? "text-red-400" : "text-cyan-400"
+          }`} style={{
+            background: goToResult.startsWith("Erreur") ? "rgba(239,68,68,0.06)" : "rgba(0,229,255,0.04)",
+            border: `1px solid ${goToResult.startsWith("Erreur") ? "rgba(239,68,68,0.15)" : "rgba(0,229,255,0.1)"}`,
+          }}>
             {goToResult}
           </div>
         )}
 
-        {/* Status temps réel du capitaine */}
+        {/* Capitain realtime status */}
         {capitainStatus && (
-          <div className={`mt-3 rounded-lg border p-3 ${
-            capitainStatus.status === "COMPLETED" ? "bg-emerald-950/30 border-emerald-800/50 glow-emerald" :
-            capitainStatus.status === "FAILED" || capitainStatus.status === "CANCELLED" ? "bg-red-950/30 border-red-800/50 glow-red" :
-            capitainStatus.status === "IN_PROGRESS" ? "bg-blue-950/30 border-blue-800/50 glow-blue" :
-            "glass"
-          }`}>
+          <div className={`mt-3 rounded-xl p-3 ${
+            capitainStatus.status === "IN_PROGRESS" ? "glow-blue" : ""
+          }`} style={{
+            background: capitainStatus.status === "COMPLETED" ? "rgba(52,211,153,0.06)" :
+              capitainStatus.status === "FAILED" || capitainStatus.status === "CANCELLED" ? "rgba(239,68,68,0.06)" :
+              capitainStatus.status === "IN_PROGRESS" ? "rgba(59,130,246,0.06)" : "rgba(255,255,255,0.02)",
+            border: `1px solid ${
+              capitainStatus.status === "COMPLETED" ? "rgba(52,211,153,0.15)" :
+              capitainStatus.status === "FAILED" || capitainStatus.status === "CANCELLED" ? "rgba(239,68,68,0.15)" :
+              capitainStatus.status === "IN_PROGRESS" ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)"
+            }`,
+          }}>
             <div className="flex items-center justify-between mb-1">
-              <span className={`text-xs font-semibold uppercase ${
+              <span className={`text-xs font-semibold flex items-center gap-1.5 ${
                 capitainStatus.status === "COMPLETED" ? "text-emerald-400" :
                 capitainStatus.status === "FAILED" || capitainStatus.status === "CANCELLED" ? "text-red-400" :
                 capitainStatus.status === "IN_PROGRESS" ? "text-blue-400" :
                 "text-zinc-400"
               }`}>
+                {capitainStatus.status === "IN_PROGRESS" && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 live-dot" />}
                 {capitainStatus.status === "PENDING" && "En attente..."}
                 {capitainStatus.status === "IN_PROGRESS" && "En route"}
-                {capitainStatus.status === "COMPLETED" && "Destination atteinte"}
+                {capitainStatus.status === "COMPLETED" && "Arrive"}
                 {capitainStatus.status === "FAILED" && "Echec"}
                 {capitainStatus.status === "CANCELLED" && "Annule"}
               </span>
               {capitainStatus.progress?.target && (
-                <span className="text-xs text-zinc-500 font-mono">
+                <span className="text-[11px] text-zinc-500 font-mono">
                   ({capitainStatus.progress.target.x}, {capitainStatus.progress.target.y})
                 </span>
               )}
             </div>
             {capitainStatus.message && (
-              <p className="text-xs text-zinc-300">{capitainStatus.message}</p>
+              <p className="text-[11px] text-zinc-400">{capitainStatus.message}</p>
             )}
             {capitainStatus.progress && capitainStatus.status === "IN_PROGRESS" && (
               <div className="mt-2">
-                <div className="flex justify-between text-xs text-zinc-500 mb-1">
+                <div className="flex justify-between text-[10px] text-zinc-500 mb-1">
                   <span>
                     {capitainStatus.progress.current && (
-                      <>Pos: ({capitainStatus.progress.current.x}, {capitainStatus.progress.current.y})</>
+                      <>({capitainStatus.progress.current.x}, {capitainStatus.progress.current.y})</>
                     )}
                   </span>
-                  <span className="font-mono">{capitainStatus.progress.stepsRemaining} moves restants</span>
+                  <span className="font-mono">{capitainStatus.progress.stepsRemaining} restants</span>
                 </div>
-                <div className="h-1.5 rounded-full bg-black/30 overflow-hidden">
+                <div className="energy-gauge">
                   <div
-                    className="h-full rounded-full bg-blue-500 transition-all progress-scan"
+                    className="energy-gauge-fill bg-blue-500 progress-scan"
                     style={{
                       width: capitainStatus.progress.stepsTotal > 0
                         ? `${Math.max(2, ((capitainStatus.progress.stepsTotal - capitainStatus.progress.stepsRemaining) / capitainStatus.progress.stepsTotal) * 100)}%`
@@ -326,114 +271,87 @@ export function ShipPanel({
         )}
       </div>
 
-      {/* Prochain niveau */}
+      {/* Next level */}
       {shipNextLevel?.level ? (
-        <div className="rounded-xl glass overflow-hidden card-3d glow-blue xl:order-6">
-          <div className="px-5 py-3 border-b border-white/5">
-            <h3 className="text-sm font-semibold text-zinc-200 section-header">
-              Prochain niveau —{" "}
-              <span className="capitalize text-white">{shipNextLevel.level!.name}</span>{" "}
-              <span className="text-zinc-500 font-normal">(niv. {shipNextLevel.level!.id})</span>
+        <div className="card card-accent-blue overflow-hidden xl:order-6">
+          <div className="px-5 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+            <h3 className="text-sm font-semibold text-zinc-200">
+              {shipNextLevel.level!.name}
+              <span className="text-zinc-600 font-normal ml-1.5 text-xs">niv. {shipNextLevel.level!.id}</span>
             </h3>
           </div>
           <div className="p-5 space-y-4">
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              <div className="rounded-lg bg-black/20 border border-white/5 px-2 sm:px-3 py-2.5 text-center">
-                <div className="text-xs text-zinc-500 mb-0.5">Mouv. max</div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="stat-pill">
+                <div className="text-[10px] text-zinc-500 mb-0.5">Mouv.</div>
                 <div className="text-lg font-bold text-white font-mono">{shipNextLevel.level!.maxMovement}</div>
               </div>
-              <div className="rounded-lg bg-black/20 border border-white/5 px-2 sm:px-3 py-2.5 text-center">
-                <div className="text-xs text-zinc-500 mb-0.5">Visibilité</div>
+              <div className="stat-pill">
+                <div className="text-[10px] text-zinc-500 mb-0.5">Vision</div>
                 <div className="text-lg font-bold text-white font-mono">{shipNextLevel.level!.visibilityRange}</div>
               </div>
-              <div className="rounded-lg bg-black/20 border border-white/5 px-2 sm:px-3 py-2.5 text-center">
-                <div className="text-xs text-zinc-500 mb-0.5">Vitesse</div>
+              <div className="stat-pill">
+                <div className="text-[10px] text-zinc-500 mb-0.5">Vitesse</div>
                 <div className="text-lg font-bold text-white font-mono">{shipNextLevel.level!.speed}</div>
               </div>
             </div>
 
-            {/* Coût et ressources actuelles */}
             {costEntries.length > 0 && (
               <div>
-                <div className="text-xs text-zinc-500 mb-2">Ressources requises</div>
-                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Cout</div>
+                <div className="grid grid-cols-3 gap-2">
                   {costEntries.map(([resource, cost]) => {
                     const have = resourceMap.get(resource) ?? 0;
                     const missing = Math.max(0, cost - have);
                     const enough = have >= cost;
-
+                    const pct = Math.min(100, (have / cost) * 100);
+                    const meta = RESOURCE_META[resource];
                     return (
-                      <div
-                        key={resource}
-                        className={`rounded-lg border px-2 sm:px-3 py-2 text-center ${
-                          enough
-                            ? "bg-emerald-950/30 border-emerald-800/50 glow-emerald"
-                            : "bg-red-950/30 border-red-800/50 glow-red"
-                        }`}
-                      >
-                        <div className={`text-xs font-semibold ${RESOURCE_COLORS[resource] ?? "text-zinc-400"}`}>
-                          {resource}
+                      <div key={resource} className="stat-pill">
+                        <div className={`text-[10px] font-semibold ${meta?.color ?? "text-zinc-400"}`}>{meta?.label ?? resource}</div>
+                        <div className="text-xs font-bold text-white mt-0.5 font-mono">
+                          {have.toLocaleString()}<span className="text-zinc-600">/{cost.toLocaleString()}</span>
                         </div>
-                        <div className="text-sm font-bold text-white mt-0.5 font-mono">
-                          {have.toLocaleString()} / {cost.toLocaleString()}
+                        <div className="w-full energy-gauge mt-1.5">
+                          <div className={`energy-gauge-fill ${enough ? "bg-emerald-400" : "bg-red-400"}`} style={{ width: `${Math.max(2, pct)}%` }} />
                         </div>
-                        {!enough && (
-                          <div className="text-xs text-red-400 mt-0.5">
-                            -{missing.toLocaleString()}
-                          </div>
-                        )}
-                        {enough && (
-                          <div className="text-xs text-emerald-400 mt-0.5">OK</div>
-                        )}
+                        {!enough && <div className="text-[10px] text-red-400 mt-0.5">-{missing.toLocaleString()}</div>}
+                        {enough && <div className="text-[10px] text-emerald-400 mt-0.5">OK</div>}
                       </div>
                     );
                   })}
                 </div>
-                {!canUpgrade && (
-                  <div className="mt-2 text-xs text-red-400">
-                    Ressources insuffisantes pour cette amélioration
-                  </div>
-                )}
               </div>
             )}
 
-            {/* Bouton upgrade */}
-            <button
-              type="button"
-              onClick={handleUpgrade}
-              disabled={upgrading || !canUpgrade}
-              className="w-full py-2.5 rounded-lg text-sm btn-gaming-emerald"
-            >
-              {upgrading ? "Amélioration en cours..." : canUpgrade ? `Améliorer \u2192 ${shipNextLevel.level!.name}` : "Ressources insuffisantes"}
+            <button type="button" onClick={handleUpgrade} disabled={upgrading || !canUpgrade}
+              className="w-full py-2.5 rounded-xl text-sm btn-gaming-emerald">
+              {upgrading ? "Amelioration..." : canUpgrade ? "Ameliorer" : "Ressources insuffisantes"}
             </button>
 
             {upgradeResult && (
-              <div className={`px-3 py-2 rounded-lg text-xs ${
-                upgradeResult.startsWith("Erreur")
-                  ? "bg-red-950/30 border border-red-800/50 text-red-300 glow-red"
-                  : "bg-emerald-950/30 border border-emerald-800/50 text-emerald-300 glow-emerald"
-              }`}>
+              <div className={`px-3 py-2 rounded-lg text-xs font-mono toast ${upgradeResult.startsWith("Erreur") ? "text-red-400" : "text-emerald-400"}`}
+                style={{ background: upgradeResult.startsWith("Erreur") ? "rgba(239,68,68,0.06)" : "rgba(52,211,153,0.06)", border: `1px solid ${upgradeResult.startsWith("Erreur") ? "rgba(239,68,68,0.15)" : "rgba(52,211,153,0.15)"}` }}>
                 {upgradeResult}
               </div>
             )}
           </div>
         </div>
       ) : shipLevelError ? (
-        <div className="rounded-xl glass p-4 card-3d xl:order-6">
-          <h3 className="text-sm font-semibold text-zinc-200 mb-2 section-header">Prochain niveau</h3>
-          <div className="px-3 py-2 rounded-lg bg-amber-950/30 border border-amber-800/50 text-amber-300 text-xs font-mono glow-yellow">
+        <div className="card p-4 xl:order-6">
+          <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Prochain niveau</h3>
+          <div className="px-3 py-2 rounded-lg text-amber-400 text-xs font-mono" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.15)" }}>
             {shipLevelError}
           </div>
         </div>
       ) : shipNextLevel && !shipNextLevel.level ? (
-        <div className="rounded-xl glass p-4 text-center card-3d glow-yellow xl:order-6">
-          <div className="text-yellow-400 text-lg mb-1 animate-float">&#9733;</div>
-          <p className="text-zinc-400 text-sm">Niveau maximum atteint</p>
+        <div className="card p-5 text-center xl:order-6">
+          <div className="text-yellow-400 text-2xl mb-2 animate-float">&#9733;</div>
+          <p className="text-zinc-500 text-sm">Niveau maximum atteint</p>
         </div>
       ) : (
-        <div className="rounded-xl glass p-4 text-center xl:order-6">
-          <p className="text-zinc-500 text-sm">Chargement des données du prochain niveau...</p>
+        <div className="card p-4 text-center xl:order-6">
+          <p className="text-zinc-600 text-sm">Chargement...</p>
         </div>
       )}
     </>
