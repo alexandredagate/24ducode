@@ -13,6 +13,30 @@ export async function connectDb(): Promise<Db> {
   db = client.db(dbName);
   await db.collection("cells").createIndex({ id: 1 }, { unique: true });
   await db.collection("cells").createIndex({ x: 1, y: 1 }, { unique: true });
+  await db.collection("confirmed_refuel").createIndex({ x: 1, y: 1 }, { unique: true });
+  // HOME est toujours un refuel confirmé
+  await db.collection("confirmed_refuel").updateOne(
+    { x: 5, y: 3 },
+    { $set: { x: 5, y: 3, confirmedAt: new Date() } },
+    { upsert: true },
+  );
+  // Seed : copier toutes les cellules SAND KNOWN existantes dans confirmed_refuel
+  // (elles viennent de l'ancien sync avec player:details, donc fiables)
+  const knownSandCells = await db.collection("cells").find(
+    { type: "SAND", discoveryStatus: "KNOWN" },
+    { projection: { x: 1, y: 1, _id: 0 } },
+  ).toArray();
+  if (knownSandCells.length > 0) {
+    const ops = knownSandCells.map((c) => ({
+      updateOne: {
+        filter: { x: c.x, y: c.y },
+        update: { $setOnInsert: { x: c.x, y: c.y, confirmedAt: new Date() } },
+        upsert: true,
+      },
+    }));
+    await db.collection("confirmed_refuel").bulkWrite(ops);
+    console.log(`[db] seeded ${knownSandCells.length} confirmed_refuel from KNOWN cells`);
+  }
   console.log(`[db] connected to ${dbName}`);
   return db;
 }

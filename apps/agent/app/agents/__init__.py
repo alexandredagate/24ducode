@@ -1,16 +1,13 @@
-"""Agent registry — ajoutez vos nouvelles versions ici."""
 from app.agents.base import BaseAgent
-from app.agents.v1 import AgentV1
-from app.agents.v2 import AgentV2
+from app.agents.explorer import ExplorerAgent
 
 AGENTS: dict[str, type[BaseAgent]] = {
-    "v1": AgentV1,
-    "v2": AgentV2,
+    "v2": ExplorerAgent,
+    "explorer": ExplorerAgent,
 }
 
 
 def get_agent(version: str, ws, db=None) -> BaseAgent:
-    """Instancie l'agent correspondant à la version demandée."""
     cls = AGENTS.get(version)
     if cls is None:
         available = ", ".join(sorted(AGENTS.keys()))

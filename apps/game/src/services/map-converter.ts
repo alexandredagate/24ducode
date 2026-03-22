@@ -45,3 +45,19 @@ export function serverToGrid(x: number, y: number, meta: MapMeta) {
 export function gridToServer(row: number, col: number, meta: MapMeta) {
   return { x: col + meta.minX, y: meta.maxY - row };
 }
+
+/**
+ * Convertit les coordonnées serveur confirmedRefuel en un Set de "row_col" pour le renderer.
+ */
+export function buildConfirmedSet(
+  confirmedRefuel: { x: number; y: number }[] | undefined,
+  meta: MapMeta,
+): Set<string> {
+  const set = new Set<string>();
+  if (!confirmedRefuel) return set;
+  for (const { x, y } of confirmedRefuel) {
+    const { row, col } = serverToGrid(x, y, meta);
+    set.add(`${row}_${col}`);
+  }
+  return set;
+}

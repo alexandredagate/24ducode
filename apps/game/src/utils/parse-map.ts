@@ -2,7 +2,6 @@ export const TileType = {
   Void: '0',
   Water: '1',
   Island: '2',
-  IslandDiscovered: '3',
 } as const;
 
 export type TileType = (typeof TileType)[keyof typeof TileType];

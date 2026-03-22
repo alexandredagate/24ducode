@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM --platform=linux/amd64 node:20-alpine AS base
 WORKDIR /app
 
 # Copy root workspace config
@@ -8,7 +8,7 @@ COPY package.json package-lock.json turbo.json ./
 COPY apps/dash/ ./apps/dash/
 COPY packages/ ./packages/
 
-# Install deps + native bindings for Alpine (musl)
+# Install deps + native bindings for Alpine x64 (musl)
 RUN npm ci && npm install --no-save lightningcss-linux-x64-musl @tailwindcss/oxide-linux-x64-musl
 
 # Build Next.js — bake the API URL at build time
@@ -18,7 +18,7 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npx turbo run build --filter=dash
 
 # --- Production stage ---
-FROM node:20-alpine
+FROM --platform=linux/amd64 node:20-alpine
 WORKDIR /app
 
 COPY --from=base /app/apps/dash/.next/standalone ./

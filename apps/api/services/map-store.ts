@@ -12,6 +12,25 @@ const KNOWN_NOTES = new Map<string, CellNote>([
 /** Cells that are always KNOWN (home island, etc.) */
 const ALWAYS_KNOWN = new Set<string>(["5,3"]);
 
+const CONFIRMED_REFUEL_COLLECTION = "confirmed_refuel";
+
+// ─── Confirmed refuel islands ───────────────────────────────────────
+
+/**
+ * Marque une cellule SAND comme "refuel confirmé" (le bateau a rechargé ici).
+ * C'est la seule source de vérité pour savoir si une île recharge.
+ */
+export async function markConfirmedRefuel(x: number, y: number): Promise<void> {
+  const col = getDb().collection(CONFIRMED_REFUEL_COLLECTION);
+  await col.updateOne({ x, y }, { $set: { x, y, confirmedAt: new Date() } }, { upsert: true });
+}
+
+export async function getConfirmedRefuelCoords(): Promise<{ x: number; y: number }[]> {
+  const col = getDb().collection(CONFIRMED_REFUEL_COLLECTION);
+  const docs = await col.find({}).toArray();
+  return docs.map((d) => ({ x: d.x, y: d.y }));
+}
+
 // ─── Ship position ──────────────────────────────────────────────────
 
 export async function saveShipPosition(codingGameId: string, position: Cell, energy: number): Promise<void> {
@@ -184,8 +203,10 @@ export interface MapGrid {
   width: number;
   height: number;
   notes: CellNoteEntry[];
-  /** Toutes les cellules SAND avec leur status de découverte */
+  /** Toutes les cellules SAND */
   islands: IslandCell[];
+  /** Cellules SAND où un refuel a été confirmé (seule source de vérité) */
+  confirmedRefuel: { x: number; y: number }[];
 }
 
 export async function getMapGrid(): Promise<MapGrid> {
@@ -193,7 +214,7 @@ export async function getMapGrid(): Promise<MapGrid> {
   const cells = await col.find({}).toArray();
 
   if (!cells.length) {
-    return { grid: [], minX: 0, maxX: 0, minY: 0, maxY: 0, width: 0, height: 0, notes: [], islands: [] };
+    return { grid: [], minX: 0, maxX: 0, minY: 0, maxY: 0, width: 0, height: 0, notes: [], islands: [], confirmedRefuel: [] };
   }
 
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -214,11 +235,11 @@ export async function getMapGrid(): Promise<MapGrid> {
   for (const c of cells) {
     const row = c.y - minY;
     const col = c.x - minX;
-    // 0=inconnu, 1=SEA, 2=SAND KNOWN, 3=SAND DISCOVERED (pas encore validée)
+    // 0=inconnu, 1=SEA, 2=SAND (toute île visible)
     if (c.type === "SEA") {
       rows[row][col] = "1";
     } else if (c.type === "SAND") {
-      rows[row][col] = c.discoveryStatus === "KNOWN" ? "2" : "3";
+      rows[row][col] = "2";
     }
   }
 
@@ -235,5 +256,7 @@ export async function getMapGrid(): Promise<MapGrid> {
       discoveryStatus: (c.discoveryStatus ?? "DISCOVERED") as DiscoveryStatus,
     }));
 
-  return { grid, minX, maxX, minY, maxY, width, height, notes, islands };
+  const confirmedRefuel = await getConfirmedRefuelCoords();
+
+  return { grid, minX, maxX, minY, maxY, width, height, notes, islands, confirmedRefuel };
 }
