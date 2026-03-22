@@ -8,7 +8,7 @@ import {
     login, buildShip, getShipLocation, getShipNextLevel,
     getMapMeta, type MapMeta,
 } from "../services/socket";
-import { serverGridToGameMap, serverToGrid } from "../services/map-converter";
+import { serverGridToGameMap, serverToGrid, buildConfirmedSet } from "../services/map-converter";
 
 import skyboxPx from "../assets/skybox/px.png?url";
 import skyboxPy from "../assets/skybox/py.png?url";
@@ -95,6 +95,7 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
     let serverAvailable = false;
     let map;
 
+    let gridData;
     try {
         connect();
         const authenticated = await authenticatePlayer();
@@ -104,7 +105,7 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
             serverAvailable = true;
         }
 
-        const gridData = await requestMapGrid();
+        gridData = await requestMapGrid();
         map = serverGridToGameMap(gridData);
         console.log('[game] server map loaded:', map.cols, 'x', map.rows);
     } catch (err) {
@@ -112,8 +113,10 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
         throw err;
     }
 
-    let currentMeta: MapMeta | null = getMapMeta();
-    let currentMapResult = createMap(scene, engine, map, camera, currentMeta);
+    const initialMeta: MapMeta = { minX: gridData.minX, maxX: gridData.maxX, minY: gridData.minY, maxY: gridData.maxY };
+    const initialConfirmed = buildConfirmedSet(gridData.confirmedRefuel, initialMeta);
+    let currentMapResult = createMap(scene, engine, map, camera, initialMeta, initialConfirmed);
+    let currentMeta: MapMeta | null = initialMeta;
 
     // ─── Listen for server broadcasts ────────────────
     onBrokerEvent((data) => {
@@ -200,7 +203,8 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
             console.log('[game] map:update — incremental');
             const newMap = serverGridToGameMap(gridData);
             currentMeta = { minX: gridData.minX, maxX: gridData.maxX, minY: gridData.minY, maxY: gridData.maxY };
-            currentMapResult.applyUpdate(newMap);
+            const newConfirmed = buildConfirmedSet(gridData.confirmedRefuel, currentMeta);
+            currentMapResult.applyUpdate(newMap, newConfirmed);
             controller.updateMap(newMap, currentMapResult.tileMeshes, currentMeta);
         });
 

@@ -1,6 +1,6 @@
 import type { Socket, Server as SocketServer } from "socket.io";
 import { buildShip, moveShip, getShipNextLevel, upgradeShip } from "../../services/game-api";
-import { upsertCells, getMapGrid, saveShipPosition, getShipPosition, getCellAt, validateDiscoveries } from "../../services/map-store";
+import { upsertCells, getMapGrid, saveShipPosition, getShipPosition, getCellAt, validateDiscoveries, markConfirmedRefuel } from "../../services/map-store";
 import type { ClientCommand, ServerResponse, Direction, UpgradeShip, Cell } from "types";
 
 const VALID_DIRECTIONS = new Set<Direction>([
@@ -33,7 +33,17 @@ export async function handleShip(
           `Invalid direction "${direction}". Must be one of: ${[...VALID_DIRECTIONS].join(", ")}`
         );
       }
+      // Énergie avant le move (pour détecter un refill)
+      const prevState = await getShipPosition(codingGameId);
+      const energyBefore = prevState?.energy ?? 0;
+
       const data = await moveShip(codingGameId, direction);
+
+      // Si le bateau arrive sur SAND et que l'énergie a AUGMENTÉ → refuel confirmé
+      if (data.position?.type === "SAND" && data.energy > energyBefore) {
+        await markConfirmedRefuel(data.position.x, data.position.y);
+        console.log(`[ship] REFUEL CONFIRMÉ à (${data.position.x},${data.position.y}) energy ${energyBefore}→${data.energy}`);
+      }
 
       // Vérifier si la position AVANT upsert est déjà KNOWN
       // (évite que ALWAYS_KNOWN force KNOWN + valide dans la même requête)

@@ -11,11 +11,11 @@ const GAP = 0;
 export interface MapResult {
   tileMeshes: Map<string, Mesh>;
   map: GameMap;
-  applyUpdate: (newMap: GameMap) => void;
+  applyUpdate: (newMap: GameMap, confirmedSet?: Set<string>) => void;
   dispose: () => void;
 }
 
-export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: ArcRotateCamera, meta?: MapMeta | null): MapResult {
+export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: ArcRotateCamera, meta?: MapMeta | null, confirmedSet?: Set<string>): MapResult {
   let currentMap = map;
   const STEP = TILE_SIZE + GAP;
 
@@ -27,7 +27,7 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
   const waterCells: TileCell[] = [];
   for (const row of map.cells) {
     for (const cell of row) {
-      if (cell.type === TileType.Water || cell.type === TileType.Island || cell.type === TileType.IslandDiscovered) {
+      if (cell.type === TileType.Water || cell.type === TileType.Island) {
         waterCells.push(cell);
       }
     }
@@ -45,7 +45,8 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
     }),
   );
 
-  const islandMeshes: Mesh[] = [...buildIslandMeshes(numericGrid, TILE_SIZE, GAP, scene)];
+  let currentConfirmedSet = confirmedSet ?? new Set<string>();
+  const islandMeshes: Mesh[] = [...buildIslandMeshes(numericGrid, TILE_SIZE, GAP, scene, currentConfirmedSet)];
 
   // ─── Discovered island markers (⁉️) ───────────────────
   const MARKER_Y = 1.8;
@@ -81,17 +82,18 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
 
     for (const row of currentMap.cells) {
       for (const cell of row) {
-        if (cell.type === TileType.IslandDiscovered) {
+        // Marker sur les îles NON confirmées (pas de refuel confirmé)
+        if (cell.type === TileType.Island && !currentConfirmedSet.has(`${cell.row}_${cell.col}`)) {
           addMarker(cell.row, cell.col);
         }
       }
     }
   }
 
-  // Initial markers
+  // Initial markers — îles non confirmées
   for (const row of map.cells) {
     for (const cell of row) {
-      if (cell.type === TileType.IslandDiscovered) {
+      if (cell.type === TileType.Island && !currentConfirmedSet.has(`${cell.row}_${cell.col}`)) {
         addMarker(cell.row, cell.col);
       }
     }
@@ -161,7 +163,8 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
 
   // ─── Mise à jour incrémentale ───────────────────────
 
-  function applyUpdate(newMap: GameMap) {
+  function applyUpdate(newMap: GameMap, newConfirmedSet?: Set<string>) {
+    if (newConfirmedSet) currentConfirmedSet = newConfirmedSet;
     const oldOriginX = getOriginX();
     const oldOriginZ = getOriginZ();
     currentMap = newMap;
@@ -186,13 +189,13 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
         // Nouvelle cellule ou type changé
         knownCells.add(key);
 
-        if (cell.type === TileType.Water || cell.type === TileType.Island || cell.type === TileType.IslandDiscovered) {
+        if (cell.type === TileType.Water || cell.type === TileType.Island) {
           if (!tileMeshes.has(`${cell.row}_${cell.col}`)) {
             newWaterCells.push(cell);
           }
         }
 
-        if (cell.type === TileType.Island || cell.type === TileType.IslandDiscovered) {
+        if (cell.type === TileType.Island) {
           hasNewIslands = true;
         }
       }
@@ -213,7 +216,7 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
       islandMeshes.length = 0;
 
       const newNumericGrid = newMap.cells.map(row => row.map(cell => Number(cell.type)));
-      const newIslands = buildIslandMeshes(newNumericGrid, TILE_SIZE, GAP, scene);
+      const newIslands = buildIslandMeshes(newNumericGrid, TILE_SIZE, GAP, scene, currentConfirmedSet);
       islandMeshes.push(...newIslands);
 
       // Rebuild markers (discovered islands may have changed)
@@ -234,7 +237,7 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
     const newWaterCells: TileCell[] = [];
     for (const row of newMap.cells) {
       for (const cell of row) {
-        if (cell.type === TileType.Water || cell.type === TileType.Island || cell.type === TileType.IslandDiscovered) {
+        if (cell.type === TileType.Water || cell.type === TileType.Island) {
           newWaterCells.push(cell);
         }
       }
@@ -247,7 +250,7 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
     Object.assign(waterResult, newWaterResult);
 
     const newNumericGrid = newMap.cells.map(row => row.map(cell => Number(cell.type)));
-    islandMeshes.push(...buildIslandMeshes(newNumericGrid, TILE_SIZE, GAP, scene));
+    islandMeshes.push(...buildIslandMeshes(newNumericGrid, TILE_SIZE, GAP, scene, currentConfirmedSet));
 
     knownCells.clear();
     for (const row of newMap.cells) {

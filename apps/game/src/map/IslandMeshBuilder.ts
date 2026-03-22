@@ -11,9 +11,8 @@ interface CellGroup {
   maxCol: number;
 }
 
-/** Returns true if the cell value represents an island (KNOWN=2 or DISCOVERED=3) */
 function isIslandCell(val: number): boolean {
-  return val === 2 || val === 3;
+  return val === 2;
 }
 
 function floodFillIslands(grid: Grid): CellGroup[] {
@@ -76,15 +75,15 @@ function buildIslandMesh(
   originZ: number,
   mat: StandardMaterial,
   scene: Scene,
+  confirmedSet: Set<string>,
 ): Mesh | null {
   const islandSet = new Set<string>();
-  const discoveredSet = new Set<string>();
   for (const [r, c] of group.cells) {
     islandSet.add(`${r}_${c}`);
-    if (_grid[r]?.[c] === 3) discoveredSet.add(`${r}_${c}`);
   }
-  // L'île entière est "discovered" si au moins une de ses cellules est DISCOVERED (pas KNOWN)
-  const isDiscoveredIsland = discoveredSet.size > 0;
+  // Une île est "confirmed" (verte) si au moins une de ses cellules est dans confirmedSet
+  // Sinon elle est orange (non confirmée / pas encore de refuel)
+  const isConfirmedIsland = group.cells.some(([r, c]) => confirmedSet.has(`${r}_${c}`));
 
   const MARGIN = 0.4;
   const SUBS_PER_CELL = 8;
@@ -179,7 +178,7 @@ function buildIslandMesh(
         }
       }
 
-      if (isDiscoveredIsland) {
+      if (!isConfirmedIsland) {
         // DISCOVERED: couleurs orangées/dorées pour signaler "pas encore validée"
         if (edgeDist < 0.6) {
           colors.push(0.95, 0.65, 0.25, 1); // sable orange
@@ -227,6 +226,7 @@ export function buildIslandMeshes(
   tileSize: number,
   gap: number,
   scene: Scene,
+  confirmedSet?: Set<string>,
 ): Mesh[] {
   const step = tileSize + gap;
   const rows = grid.length;
@@ -245,7 +245,7 @@ export function buildIslandMeshes(
   const originZ = -((rows - 1) / 2) * step;
 
   for (const group of groups) {
-    const mesh = buildIslandMesh(group, grid, step, tileSize, originX, originZ, mat, scene);
+    const mesh = buildIslandMesh(group, grid, step, tileSize, originX, originZ, mat, scene, confirmedSet ?? new Set());
     if (mesh) meshes.push(mesh);
   }
 

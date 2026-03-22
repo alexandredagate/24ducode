@@ -5,14 +5,14 @@ from dataclasses import dataclass, field
 HOME_POSITION: dict = {"x": 5, "y": 3}
 
 _DIR_VECTORS: dict[str, tuple[int, int]] = {
-    "N":  ( 0,  1),
-    "S":  ( 0, -1),
+    "N":  ( 0, -1),
+    "S":  ( 0,  1),
     "E":  ( 1,  0),
     "W":  (-1,  0),
-    "NE": ( 1,  1),
-    "NW": (-1,  1),
-    "SE": ( 1, -1),
-    "SW": (-1, -1),
+    "NE": ( 1, -1),
+    "NW": (-1, -1),
+    "SE": ( 1,  1),
+    "SW": (-1,  1),
 }
 _ZONE1_DIRS: list[str] = ["N", "S", "E", "W"]
 _ALL_DIRS: list[str] = list(_DIR_VECTORS.keys())

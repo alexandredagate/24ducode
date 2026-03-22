@@ -127,6 +127,7 @@ export interface MapGridData {
   maxY: number;
   width: number;
   height: number;
+  confirmedRefuel?: { x: number; y: number }[];
 }
 
 export interface MapMeta {
