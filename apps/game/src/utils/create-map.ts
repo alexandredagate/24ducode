@@ -1,4 +1,4 @@
-import { type ArcRotateCamera, Color3, Color4, FresnelParameters, Mesh, StandardMaterial, Vector3, type Engine, type Scene } from "babylonjs";
+import { type ArcRotateCamera, Color3, Color4, FresnelParameters, type InstancedMesh, Mesh, StandardMaterial, Vector3, type Engine, type Scene } from "babylonjs";
 import { type GameMap, TileType, type TileCell } from "./parse-map";
 
 function isVisible(t: string) { return t === TileType.Water || t === TileType.Island || t === TileType.Discovered; }
@@ -166,7 +166,7 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
   oceanFloorMat.backFaceCulling = false;
   oceanFloor.material = oceanFloorMat;
 
-  const voidMeshes: Mesh[] = [];
+  const voidInstances: InstancedMesh[] = [];
   const voidKeys = new Set<string>();
 
   const voidMaster = createRoundedBoxMesh(
@@ -188,13 +188,19 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
   voidFresnel.rightColor = new Color3(0, 0.02, 0.06);
   voidMat.emissiveFresnelParameters = voidFresnel;
   voidMat.backFaceCulling = false;
+  voidMaster.material = voidMat;
 
   function isVoidAt(r: number, c: number): boolean {
     if (r < 0 || r >= currentMap.rows || c < 0 || c >= currentMap.cols) return true;
     return currentMap.cells[r][c].type === TileType.Void;
   }
 
-  function addVoidTile(r: number, c: number) {
+  // Extend void tiles far enough so the player never sees the edge.
+  // Camera maxZ=180, upperRadiusLimit=20 → at lowest angle the ground is
+  // visible out to ~80 tiles. Instances are cheap (single draw call).
+  const VOID_EXTENT = 45;
+
+  function addVoidInstance(r: number, c: number) {
     const key = `${r}_${c}`;
     if (voidKeys.has(key)) return;
     voidKeys.add(key);
@@ -202,16 +208,14 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
     const x = getOriginX() + c * STEP;
     const z = getOriginZ() + r * STEP;
 
-    const mesh = voidMaster.clone(`void_${key}`);
-    mesh.isVisible = true;
-    mesh.position.set(x, 0, z);
-    mesh.material = voidMat;
-    voidMeshes.push(mesh);
+    const inst = voidMaster.createInstance(`void_${key}`);
+    inst.position.set(x, 0, z);
+    voidInstances.push(inst);
   }
 
   function rebuildFog(centerR?: number, centerC?: number) {
-    for (const m of voidMeshes) m.dispose();
-    voidMeshes.length = 0;
+    for (const m of voidInstances) m.dispose();
+    voidInstances.length = 0;
     voidKeys.clear();
 
     if (centerR == null || centerC == null) {
@@ -226,14 +230,13 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
       centerC = Math.round(sumC / cnt);
     }
 
-    const extent = viewRadius + 2;
-    const extent2 = extent * extent;
-    for (let dr = -extent; dr <= extent; dr++) {
-      for (let dc = -extent; dc <= extent; dc++) {
+    const extent2 = VOID_EXTENT * VOID_EXTENT;
+    for (let dr = -VOID_EXTENT; dr <= VOID_EXTENT; dr++) {
+      for (let dc = -VOID_EXTENT; dc <= VOID_EXTENT; dc++) {
         if (dr * dr + dc * dc > extent2) continue;
-        const r = centerR + dr;
-        const c = centerC + dc;
-        if (isVoidAt(r, c)) addVoidTile(r, c);
+        const r = centerR! + dr;
+        const c = centerC! + dc;
+        if (isVoidAt(r, c)) addVoidInstance(r, c);
       }
     }
   }
@@ -382,7 +385,7 @@ export function createMap(scene: Scene, engine: Engine, map: GameMap, camera: Ar
 
     oceanFloor.dispose();
 
-    for (const m of voidMeshes) m.dispose();
+    for (const m of voidInstances) m.dispose();
     voidMaster.dispose();
     voidMat.dispose();
   }
