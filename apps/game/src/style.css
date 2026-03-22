@@ -6,3 +6,99 @@
   display: block;
   touch-action: none;
 }
+
+/* ─── Toon HUD ─────────────────────────────────────── */
+.hud-panel {
+  position: relative;
+  width: 148px;
+  background: #1a2a4a;
+  border: 3px solid #000;
+  border-radius: 6px;
+  box-shadow: 4px 4px 0 #000, inset 0 1px 0 rgba(255,255,255,0.12);
+  padding: 6px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.hud-panel-title {
+  font: 700 9px/1 monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #f5c842;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.hud-panel-value {
+  font: 800 15px/1 monospace;
+  color: #f0e8d0;
+  text-shadow: 2px 2px 0 #000;
+}
+
+.hud-gauge {
+  width: 154px;
+}
+
+.hud-gauge-label {
+  display: block;
+  font: 700 9px/1 monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #f5c842;
+  text-shadow: 1px 1px 0 #000;
+  margin-bottom: 5px;
+}
+
+.hud-gauge-track {
+  position: relative;
+  width: 100%;
+  height: 18px;
+  background: #111;
+  border: 3px solid #000;
+  border-radius: 4px;
+  box-shadow: 3px 3px 0 #000, inset 0 2px 0 rgba(0,0,0,0.4);
+  overflow: hidden;
+}
+
+.hud-gauge-fill {
+  height: 100%;
+  width: 100%;
+  background: #e03030;
+  border-radius: 1px;
+  box-shadow: inset 0 4px 0 rgba(255,255,255,0.22), inset 0 -2px 0 rgba(0,0,0,0.3);
+  transition: width 0.25s linear;
+}
+
+.hud-gauge-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 10px/1 monospace;
+  color: #fff;
+  text-shadow: 1px 1px 0 #000;
+}
+
+@keyframes hud-float-up {
+  0%   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  65%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-38px); }
+}
+
+.hud-delta {
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%) translateY(0);
+  font: 800 16px/1 monospace;
+  text-shadow: 2px 2px 0 #000;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 20;
+  animation: hud-float-up 1.4s ease-out forwards;
+}
+
+.hud-delta--gain { color: #4dff91; }
+.hud-delta--loss { color: #ff5555; }
+.hud-delta--gold { color: #f5c842; }

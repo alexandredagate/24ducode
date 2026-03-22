@@ -35,12 +35,7 @@ const HEADINGS: Record<Direction, number> = {
   SE: Math.PI / 4,
 };
 
-const KEY_TO_DIRECTION: Record<string, Direction> = {
-  ArrowUp:    'N',
-  ArrowDown:  'S',
-  ArrowLeft:  'W',
-  ArrowRight: 'E',
-};
+const ARROW_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
 export interface BoatController {
   gridRow: number;
@@ -91,6 +86,11 @@ export function createBoatController(
   let money = -1;
   let resources: { type: string; quantity: number }[] = [];
   let economyInterval: ReturnType<typeof setInterval> | null = null;
+  let economyReady = false;
+  let prevMoney = 0;
+  let prevFer = 0;
+  let prevBoi = 0;
+  let prevCha = 0;
 
   async function fetchPlayerEconomy() {
     try {
@@ -100,6 +100,15 @@ export function createBoatController(
     } catch (err) {
       console.warn('[boat] failed to fetch player details:', err);
     }
+  }
+
+  function showDelta(panelEl: HTMLDivElement, delta: number, gainClass = 'hud-delta--gain'): void {
+    if (delta === 0) return;
+    const el = document.createElement('div');
+    el.className = delta > 0 ? `hud-delta ${gainClass}` : 'hud-delta hud-delta--loss';
+    el.textContent = delta > 0 ? `+${delta}` : `${delta}`;
+    panelEl.appendChild(el);
+    el.addEventListener('animationend', () => el.remove(), { once: true });
   }
 
   // Death emoji state
@@ -116,7 +125,7 @@ export function createBoatController(
   const keys = new Set<string>();
 
   function onKeyDown(e: KeyboardEvent) {
-    if (e.key in KEY_TO_DIRECTION) {
+    if (ARROW_KEYS.has(e.key)) {
       e.preventDefault();
       keys.add(e.key);
     }
@@ -157,58 +166,49 @@ export function createBoatController(
 
   // ─── HUD ────────────────────────────────────────────
   let energyMax = 30;
-  const UI = 'kenney_ui-pack-space-expansion/PNG';
 
   const hud = document.createElement('div');
   hud.style.cssText =
-    'position:fixed;top:12px;left:12px;z-index:10;pointer-events:none;display:flex;flex-direction:column;gap:6px;';
+    'position:fixed;top:14px;left:14px;z-index:10;pointer-events:none;display:flex;flex-direction:column;gap:8px;';
 
-  // Energy gauge (Double = 2x res for crisp rendering)
+  // Energy gauge
   const gaugeWrap = document.createElement('div');
-  gaugeWrap.style.cssText = 'position:relative;width:180px;height:28px;';
+  gaugeWrap.className = 'hud-gauge';
 
-  const gaugeBg = document.createElement('img');
-  gaugeBg.src = `${UI}/Grey/Double/bar_round_gloss_large.png`;
-  gaugeBg.draggable = false;
-  gaugeBg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
+  const gaugeLabel = document.createElement('span');
+  gaugeLabel.className = 'hud-gauge-label';
+  gaugeLabel.textContent = 'Énergie';
 
-  const gaugeFill = document.createElement('img');
-  gaugeFill.src = `${UI}/Red/Double/bar_round_gloss_large.png`;
-  gaugeFill.draggable = false;
-  gaugeFill.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;clip-path:inset(0 100% 0 0);';
+  const gaugeTrack = document.createElement('div');
+  gaugeTrack.className = 'hud-gauge-track';
 
-  const gaugeText = document.createElement('span');
-  gaugeText.style.cssText =
-    'position:absolute;top:0;left:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;' +
-    'color:#fff;font:700 11px/1 monospace;text-shadow:0 1px 2px rgba(0,0,0,0.8);letter-spacing:0.5px;';
+  const gaugeFill = document.createElement('div');
+  gaugeFill.className = 'hud-gauge-fill';
 
-  gaugeWrap.append(gaugeBg, gaugeFill, gaugeText);
+  const gaugeText = document.createElement('div');
+  gaugeText.className = 'hud-gauge-text';
 
-  // Helper: metal panel with text centered in the bottom body area (~60% bottom of the image)
-  // The panel image has a dark header (top ~40%) and a light body (bottom ~60%)
-  const PANEL_SRC = `${UI}/Grey/Double/button_square_header_small_rectangle_screws.png`;
-  function createMetalPanel(): { el: HTMLDivElement; label: HTMLSpanElement } {
+  gaugeTrack.append(gaugeFill, gaugeText);
+  gaugeWrap.append(gaugeLabel, gaugeTrack);
+
+  // Helper: toon panel with title + value
+  function createToonPanel(title: string): { el: HTMLDivElement; label: HTMLSpanElement } {
     const el = document.createElement('div');
-    el.style.cssText = 'position:relative;width:180px;height:64px;';
+    el.className = 'hud-panel';
 
-    const bg = document.createElement('img');
-    bg.src = PANEL_SRC;
-    bg.draggable = false;
-    bg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
+    const titleEl = document.createElement('div');
+    titleEl.className = 'hud-panel-title';
+    titleEl.textContent = title;
 
-    // Text sits in the bottom 60% of the panel, centered
     const label = document.createElement('span');
-    label.style.cssText =
-      'position:absolute;left:0;width:100%;top:30%;height:60%;' +
-      'display:flex;align-items:center;justify-content:center;' +
-      'color:#2a2a3a;font:700 14px/1 monospace;';
+    label.className = 'hud-panel-value';
 
-    el.append(bg, label);
+    el.append(titleEl, label);
     return { el, label };
   }
 
-  const zonePanel = createMetalPanel();
-  const posPanel = createMetalPanel();
+  const zonePanel = createToonPanel('Zone');
+  const posPanel = createToonPanel('Position');
 
   hud.append(gaugeWrap, zonePanel.el, posPanel.el);
   document.body.appendChild(hud);
@@ -216,12 +216,12 @@ export function createBoatController(
   // ─── HUD top-right: economy panels in a row ───────
   const hudRight = document.createElement('div');
   hudRight.style.cssText =
-    'position:fixed;top:12px;right:12px;z-index:10;pointer-events:none;display:flex;flex-direction:row;gap:6px;';
+    'position:fixed;top:14px;right:14px;z-index:10;pointer-events:none;display:flex;flex-direction:row;gap:8px;';
 
-  const moneyPanel = createMetalPanel();
-  const ferPanel = createMetalPanel();
-  const boiPanel = createMetalPanel();
-  const chaPanel = createMetalPanel();
+  const moneyPanel = createToonPanel('Or');
+  const ferPanel = createToonPanel('Feronium');
+  const boiPanel = createToonPanel('Boisium');
+  const chaPanel = createToonPanel('Charbonium');
 
   hudRight.append(moneyPanel.el, ferPanel.el, boiPanel.el, chaPanel.el);
   document.body.appendChild(hudRight);
@@ -235,12 +235,22 @@ export function createBoatController(
     const dt = engine.getDeltaTime() / 1000;
     time += dt;
 
-    // Input → server move
-    for (const [key, dir] of Object.entries(KEY_TO_DIRECTION)) {
-      if (keys.has(key)) {
-        tryMoveServer(dir);
-        break;
-      }
+    // Input → server move (combine keys for diagonals)
+    if (keys.size > 0 && !pendingMove) {
+      const up = keys.has('ArrowUp');
+      const down = keys.has('ArrowDown');
+      const left = keys.has('ArrowLeft');
+      const right = keys.has('ArrowRight');
+      let dir: Direction | null = null;
+      if (up && left)       dir = 'NW';
+      else if (up && right)  dir = 'NE';
+      else if (down && left) dir = 'SW';
+      else if (down && right) dir = 'SE';
+      else if (up)           dir = 'N';
+      else if (down)         dir = 'S';
+      else if (left)         dir = 'W';
+      else if (right)        dir = 'E';
+      if (dir) tryMoveServer(dir);
     }
 
     // Smooth position animation
@@ -288,7 +298,7 @@ export function createBoatController(
     if (energy >= 0) {
       if (energy > energyMax) energyMax = energy;
       const pct = Math.max(0, Math.min(energyMax, energy)) / energyMax;
-      gaugeFill.style.clipPath = `inset(0 ${(1 - pct) * 100}% 0 0)`;
+      gaugeFill.style.width = `${pct * 100}%`;
       gaugeText.textContent = `Energy ${energy} / ${energyMax}`;
     } else {
       gaugeText.textContent = '';
@@ -306,9 +316,22 @@ export function createBoatController(
     const fer = resources.find(r => r.type === 'FERONIUM')?.quantity ?? 0;
     const boi = resources.find(r => r.type === 'BOISIUM')?.quantity ?? 0;
     const cha = resources.find(r => r.type === 'CHARBONIUM')?.quantity ?? 0;
-    ferPanel.label.textContent = `FER ${fer}`;
-    boiPanel.label.textContent = `BOI ${boi}`;
-    chaPanel.label.textContent = `CHA ${cha}`;
+    ferPanel.label.textContent = `${fer}`;
+    boiPanel.label.textContent = `${boi}`;
+    chaPanel.label.textContent = `${cha}`;
+
+    if (economyReady) {
+      if (money !== prevMoney) showDelta(moneyPanel.el, money - prevMoney, 'hud-delta--gold');
+      if (fer   !== prevFer)   showDelta(ferPanel.el,   fer   - prevFer);
+      if (boi   !== prevBoi)   showDelta(boiPanel.el,   boi   - prevBoi);
+      if (cha   !== prevCha)   showDelta(chaPanel.el,   cha   - prevCha);
+    } else if (money >= 0) {
+      economyReady = true;
+    }
+    if (money >= 0) prevMoney = money;
+    prevFer = fer;
+    prevBoi = boi;
+    prevCha = cha;
 
     // Death emoji — show ☠️ for 5s when energy drops to 0
     if (energy === 0 && prevEnergy > 0 && !deathEmoji) {

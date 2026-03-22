@@ -12,7 +12,7 @@ interface CellGroup {
 }
 
 function isIslandCell(val: number): boolean {
-  return val === 2;
+  return val === 2 || val === 3;
 }
 
 function floodFillIslands(grid: Grid): CellGroup[] {
@@ -81,9 +81,9 @@ function buildIslandMesh(
   for (const [r, c] of group.cells) {
     islandSet.add(`${r}_${c}`);
   }
-  // Une île est "confirmed" (verte) si au moins une de ses cellules est dans confirmedSet
-  // Sinon elle est orange (non confirmée / pas encore de refuel)
-  const isConfirmedIsland = group.cells.some(([r, c]) => confirmedSet.has(`${r}_${c}`));
+  // Une île est "confirmed" (verte) si au moins une de ses cellules est de type 2 (KNOWN)
+  // Type 3 (DISCOVERED) = orange (pas encore confirmée)
+  const isConfirmedIsland = group.cells.some(([r, c]) => _grid[r][c] === 2);
 
   const MARGIN = 0.4;
   const SUBS_PER_CELL = 8;

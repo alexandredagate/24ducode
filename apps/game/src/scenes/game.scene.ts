@@ -1,5 +1,5 @@
 import { ArcRotateCamera, Color3, CubeTexture, DirectionalLight, HemisphericLight, MeshBuilder, Scene, StandardMaterial, Texture, Vector3, type Engine } from "babylonjs";
-import { TileType } from "../utils/parse-map";
+import { TileType, clipMapToCircle } from "../utils/parse-map";
 import { createMap } from "../utils/create-map";
 import { createBoat } from "../utils/boat";
 import { createBoatController } from "../utils/boat-controller";
@@ -42,14 +42,14 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
         'camera',
         -Math.PI / 2,
         Math.PI / 3.5,
-        18,
+        6,
         Vector3.Zero(),
         scene
     );
 
     camera.attachControl(canvas, true);
-    camera.lowerRadiusLimit = 4;
-    camera.upperRadiusLimit = 35;
+    camera.lowerRadiusLimit = 3;
+    camera.upperRadiusLimit = 20;
     camera.minZ = 0.1;
     camera.maxZ = 180;
 
@@ -115,7 +115,11 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
 
     const initialMeta: MapMeta = { minX: gridData.minX, maxX: gridData.maxX, minY: gridData.minY, maxY: gridData.maxY };
     const initialConfirmed = buildConfirmedSet(gridData.confirmedRefuel, initialMeta);
-    let currentMapResult = createMap(scene, engine, map, camera, initialMeta, initialConfirmed);
+    const VIEW_RADIUS = 8; // 16x16 circular viewport
+    let fullMap = map; // keep the full unclipped map for re-clipping
+    // Initial map with center clip — will be re-clipped once boat position is known
+    const defaultClip = clipMapToCircle(map, Math.floor(map.rows / 2), Math.floor(map.cols / 2), VIEW_RADIUS);
+    let currentMapResult = createMap(scene, engine, defaultClip, camera, initialMeta, initialConfirmed);
     let currentMeta: MapMeta | null = initialMeta;
 
     // ─── Listen for server broadcasts ────────────────
@@ -181,17 +185,38 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
     }
 
     if (startRow !== null && startCol !== null) {
+        // Clip the map to a circle around the starting position
+        let clipCenterRow = startRow;
+        let clipCenterCol = startCol;
+        const clippedMap = clipMapToCircle(fullMap, clipCenterRow, clipCenterCol, VIEW_RADIUS);
+        currentMapResult.dispose();
+        currentMapResult = createMap(scene, engine, clippedMap, camera, initialMeta, initialConfirmed, VIEW_RADIUS);
+
         const boat = await createBoat(scene);
         const controller = createBoatController(
-            boat, currentMapResult.tileMeshes, map,
+            boat, currentMapResult.tileMeshes, clippedMap,
             startRow, startCol,
             engine, scene, camera,
             currentMeta,
         );
         if (startZone >= 0) controller.zone = startZone;
 
+        // Re-clip the visible area around a new center
+        function reclipAround(row: number, col: number) {
+            if (row === clipCenterRow && col === clipCenterCol) return;
+            clipCenterRow = row;
+            clipCenterCol = col;
+            const newClipped = clipMapToCircle(fullMap, row, col, VIEW_RADIUS);
+            const newConfirmed = currentMeta
+                ? buildConfirmedSet(lastConfirmedRefuel, currentMeta)
+                : new Set<string>();
+            currentMapResult.applyUpdate(newClipped, newConfirmed, { row, col });
+            controller.updateMap(newClipped, currentMapResult.tileMeshes, currentMeta);
+        }
+
         // Incremental map update when server broadcasts map:update
         let lastGridHash = '';
+        let lastConfirmedRefuel: { x: number; y: number }[] = gridData.confirmedRefuel ?? [];
         onMapUpdate((gridData) => {
             const gridHash = gridData.grid.join('|');
             if (gridHash === lastGridHash) {
@@ -201,11 +226,14 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
             lastGridHash = gridHash;
 
             console.log('[game] map:update — incremental');
-            const newMap = serverGridToGameMap(gridData);
+            const newFullMap = serverGridToGameMap(gridData);
+            fullMap = newFullMap;
             currentMeta = { minX: gridData.minX, maxX: gridData.maxX, minY: gridData.minY, maxY: gridData.maxY };
-            const newConfirmed = buildConfirmedSet(gridData.confirmedRefuel, currentMeta);
-            currentMapResult.applyUpdate(newMap, newConfirmed);
-            controller.updateMap(newMap, currentMapResult.tileMeshes, currentMeta);
+            lastConfirmedRefuel = gridData.confirmedRefuel ?? [];
+            const newConfirmed = buildConfirmedSet(lastConfirmedRefuel, currentMeta);
+            const newClipped = clipMapToCircle(fullMap, clipCenterRow, clipCenterCol, VIEW_RADIUS);
+            currentMapResult.applyUpdate(newClipped, newConfirmed, { row: clipCenterRow, col: clipCenterCol });
+            controller.updateMap(newClipped, currentMapResult.tileMeshes, currentMeta);
         });
 
         // Move boat when server broadcasts ship:position
@@ -213,6 +241,7 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
             if (currentMeta) {
                 const pos = serverToGrid(data.position.x, data.position.y, currentMeta);
                 controller.setPosition(pos.row, pos.col);
+                reclipAround(pos.row, pos.col);
             }
             if (data.energy != null) {
                 controller.energy = data.energy;
@@ -225,6 +254,8 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
         scene.onBeforeRenderObservable.add(() => {
             const pos = controller.boat.position;
             camera.setTarget(new Vector3(pos.x, 0, pos.z));
+            // Re-clip when boat moves via keyboard
+            reclipAround(controller.gridRow, controller.gridCol);
         });
     }
 
