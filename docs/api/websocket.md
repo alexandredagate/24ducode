@@ -98,6 +98,7 @@ Si un `accessToken` est fourni au handshake, il est verifie automatiquement :
 | `theft:list`                 | Oui  | Lister ses vols                                |
 | `theft:attack`               | Oui  | Lancer un vol sur un joueur                    |
 | `map:grid`                   | Non  | Recuperer la carte complete                    |
+| `admin:reset-discovery`      | Non  | Reset tous les discoveryStatus (admin)         |
 
 ---
 
@@ -285,9 +286,12 @@ Construit un bateau. Il sera place le long d'une cote de l'ile de depart.
 
 **Effets secondaires :**
 - Les cellules decouvertes sont sauvegardees en MongoDB (collection `cells`)
+- Les nouvelles cellules SAND sont marquees `discoveryStatus: "DISCOVERED"` (sauf HOME → `"KNOWN"`)
+- Si le bateau arrive sur une ile SAND et que l'energie augmente → la cellule est ajoutee a `confirmed_refuel`
+- Si le bateau arrive sur une ile SAND deja KNOWN → `validateDiscoveries()` passe toutes les DISCOVERED → KNOWN
 - La position du bateau est sauvegardee en MongoDB (collection `ship_position`)
-- Un `map:update` est broadcast a tous les clients
-- Un `ship:position` est broadcast a tous les clients avec la nouvelle position et l'energie
+- Un `map:update` est broadcast a tous les clients (avec `notes`, `islands`, `confirmedRefuel`)
+- Un `ship:position` est broadcast a tous les clients avec position enrichie (`note`, `discoveryStatus`) et `validated` (nombre de cellules validees si applicable)
 
 ---
 
@@ -721,8 +725,31 @@ Recupere la carte complete sous forme de grille :
     "grid": ["0011100", "0112210", "1122211", "0112210", "0011100"],
     "minX": -3, "maxX": 3,
     "minY": -2, "maxY": 2,
-    "width": 7, "height": 5
+    "width": 7, "height": 5,
+    "notes": [{ "x": 5, "y": 3, "note": "HOME" }],
+    "islands": [{ "x": 5, "y": 3, "zone": 1, "discoveryStatus": "KNOWN" }],
+    "confirmedRefuel": [{ "x": 5, "y": 3 }]
   }
+}
+```
+
+---
+
+### `admin:reset-discovery`
+
+Reset tous les `discoveryStatus` des cellules SAND en DB. Toutes passent a `DISCOVERED` sauf HOME (5,3) qui reste `KNOWN`. Broadcast un `map:update` a tous les clients.
+
+**Requete :**
+```json
+{ "command": "admin:reset-discovery" }
+```
+
+**Reponse succes :**
+```json
+{
+  "command": "admin:reset-discovery",
+  "status": "ok",
+  "data": { "reset": 242, "home": 1 }
 }
 ```
 
@@ -757,10 +784,13 @@ Emis a **tous les clients connectes** apres chaque `ship:move` reussi. Permet de
 
 ```json
 {
-  "position": { "id": "0fa50f7b-...", "x": 0, "y": -5, "type": "SEA", "zone": 1 },
-  "energy": 83
+  "position": { "id": "0fa50f7b-...", "x": 0, "y": -5, "type": "SEA", "zone": 1, "note": "HOME", "discoveryStatus": "KNOWN" },
+  "energy": 83,
+  "validated": 5
 }
 ```
+
+> `note` et `discoveryStatus` sont presents si la cellule a ces champs en DB. `validated` est present uniquement quand des cellules DISCOVERED ont ete passees a KNOWN lors de ce move.
 
 ### `broker:event`
 
@@ -817,10 +847,13 @@ Configurable via `ACCESS_SECRET`, `REFRESH_SECRET`, `ACCESS_TTL`, `REFRESH_TTL`.
 
 ## Base de donnees
 
-Les cellules decouvertes sont stockees dans MongoDB (collection `cells`).
-Chaque cellule est upsertee par ses coordonnees `{x, y}` (pas de doublons).
-La position du bateau est stockee dans la collection `ship_position` (upsert par `codingGameId`).
+3 collections MongoDB :
+- `cells` — cellules decouvertes (upsert par `{x, y}`)
+- `ship_position` — position du bateau (upsert par `codingGameId`)
+- `confirmed_refuel` — cellules SAND ou un refuel a ete confirme (upsert par `{x, y}`)
 
 Variables d'environnement :
 - `MONGO_URI` — URI de connexion MongoDB
-- `MONGO_DB` — nom de la base (defaut: `game3026`)
+- `MONGO_DB` — nom de la base (defaut: `ek24-database`)
+
+Voir [database.md](./database.md) pour le schema complet.
