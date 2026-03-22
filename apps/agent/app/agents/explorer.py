@@ -100,6 +100,8 @@ class ExplorerAgent(BaseAgent):
         # Cellules bloquées (zone boundary) — exclues de l'exploration
         self._blocked_cells: set[tuple[int, int]] = set()
         self._last_move_dir: str = ""  # direction du dernier move envoyé
+        # Détection de boucle : historique des 8 dernières positions
+        self._pos_history: list[tuple[int, int]] = []
         # Economy
         self._marketplace: bool = False
         self._primary_resource: str | None = None
@@ -210,7 +212,7 @@ class ExplorerAgent(BaseAgent):
 
         # ── PATH TERMINÉ MAIS PAS SUR SAND → aller sur l'île adjacente ──
         # (seulement pour fuel/validate, PAS pour zone_escape ou explore)
-        if not self._path and self._path_reason in ("fuel_emergency", "fuel_proactive", "fuel_guard", "validate"):
+        if not self._path and self._path_reason in ("fuel_emergency", "fuel_proactive", "fuel_guard"):
             if self._pos and not is_island(self._pos):
                 step = self._step_toward_nearest_sand()
                 if step:
@@ -222,12 +224,30 @@ class ExplorerAgent(BaseAgent):
         if not self._path and self._path_reason:
             self._path_reason = ""
 
+        # ── DÉTECTION DE BOUCLE ──
+        if self._is_stuck():
+            logger.warning("🔄 BOUCLE DÉTECTÉE — escape aléatoire")
+            self._grid_refresh_counter = 30  # force refresh
+            escape_dir = random.choice(_dirs())
+            self._path = [escape_dir] * 8  # 8 pas dans une direction aléatoire
+            self._path_reason = "loop_escape"
+            self._pos_history.clear()
+            return self._path.pop(0)
+
         # ── PATH EN COURS (validation, retreat, etc.) ──
         if self._path:
             return self._path.pop(0)
 
         # ── EXPLORATION INTELLIGENTE (basée sur map:grid) ──
         return self._explore()
+
+    def _is_stuck(self) -> bool:
+        """Détecte si le bot tourne en boucle (mêmes positions répétées)."""
+        if len(self._pos_history) < 8:
+            return False
+        # Si on a visité moins de 4 positions uniques dans les 8 derniers moves → boucle
+        unique = set(self._pos_history[-8:])
+        return len(unique) <= 4
 
     def _step_toward_nearest_sand(self) -> str | None:
         """Si le bot est à côté d'une île mais pas dessus, fait un pas vers la SAND la plus proche."""
@@ -418,83 +438,61 @@ class ExplorerAgent(BaseAgent):
             return self._grid[row][col]
         return "?"  # hors de la grid = inexploré
 
-    def _find_nearest_unexplored(self) -> dict | None:
-        """Trouve la cellule inexplorée (code 0 ou hors grid) la plus proche.
+    def _best_explore_direction(self) -> str:
+        """Choisit la direction qui maximise les cellules inexplorées dans un cône.
 
-        Scanne en cercles croissants autour du bot.
-        Priorise les cellules adjacentes à des cellules connues (frontière).
+        Pour chaque direction, compte combien de cellules dans un cône de 15 cells
+        de profondeur sont inexplorées. Choisit la direction avec le plus gros potentiel.
         """
-        if not self._pos:
-            return None
-
-        px, py = self._pos["x"], self._pos["y"]
-        best = None
-        best_dist = 9999
-
-        # Scan en expanding square — frontière d'abord (adjacent à du connu)
-        for radius in range(1, 40):
-            found_any = False
-            for dx in range(-radius, radius + 1):
-                for dy in [-radius, radius] if abs(dx) < radius else range(-radius, radius + 1):
-                    nx, ny = px + dx, py + dy
-                    # Skip les cellules bloquées (zone boundary)
-                    if (nx, ny) in self._blocked_cells:
-                        continue
-                    cell = self._grid_cell(nx, ny)
-                    if cell != "0" and cell != "?":
-                        continue  # déjà exploré
-
-                    # Est-ce en frontière ? (adjacent à une cellule connue)
-                    is_frontier = False
-                    for fdx, fdy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                        neighbor = self._grid_cell(nx + fdx, ny + fdy)
-                        if neighbor not in ("0", "?"):
-                            is_frontier = True
-                            break
-
-                    dist = _distance(px, py, nx, ny, self._zone)
-                    # Frontière = priorité (distance / 2)
-                    score = dist if not is_frontier else dist * 0.5
-                    if score < best_dist:
-                        best_dist = score
-                        best = {"x": nx, "y": ny}
-                        found_any = True
-
-            if found_any and best_dist < radius * 0.7:
-                break  # trouvé quelque chose de proche, pas besoin de chercher plus loin
-
-        return best
-
-    def _explore(self) -> str:
-        """Direction d'exploration intelligente basée sur la grid."""
         if not self._pos:
             return random.choice(_dirs())
 
-        # Chercher la zone inexplorée la plus proche
-        target = self._find_nearest_unexplored()
+        px, py = self._pos["x"], self._pos["y"]
+        dir_scores: dict[str, int] = {}
 
-        if target:
-            px, py = self._pos["x"], self._pos["y"]
-            vx = target["x"] - px
-            vy = target["y"] - py
-            if abs(vx) > 0.01 or abs(vy) > 0.01:
-                d = _best_dir(float(vx), float(vy))
-                # Anti-oscillation
-                if d == _OPPOSITE.get(self._last_dir):
-                    # Essayer la 2ème meilleure direction
-                    dirs = _dirs()
-                    scored = sorted(dirs, key=lambda dd: -(
-                        _DIR_VECTORS[dd][0] * vx + _DIR_VECTORS[dd][1] * vy
-                    ))
-                    for alt in scored:
-                        if alt != _OPPOSITE.get(self._last_dir):
-                            d = alt
-                            break
-                self._last_dir = d
-                return d
+        for d in _dirs():
+            dx, dy = _DIR_VECTORS[d]
+            score = 0
+            # Scanner un cône de 15 cells de profondeur, 5 de largeur
+            for depth in range(1, 16):
+                cx = int(px + dx * depth)
+                cy = int(py + dy * depth)
+                # Vérifier la cellule centrale + 2 de chaque côté
+                for lateral in range(-2, 3):
+                    if dx != 0 and dy != 0:  # diagonale
+                        lx, ly = cx + lateral, cy
+                    elif dx != 0:  # E/W
+                        lx, ly = cx, cy + lateral
+                    else:  # N/S
+                        lx, ly = cx + lateral, cy
+                    if (lx, ly) in self._blocked_cells:
+                        continue
+                    cell = self._grid_cell(lx, ly)
+                    if cell == "0" or cell == "?":
+                        score += 1
+            dir_scores[d] = score
 
-        # Fallback : spirale si aucune zone inexplorée trouvée
-        return self._spiral_fallback()
+        if not dir_scores:
+            return random.choice(_dirs())
+
+        # Choisir la direction avec le plus de potentiel
+        best_dir = max(dir_scores, key=dir_scores.get)
+
+        # Anti-oscillation
+        if best_dir == _OPPOSITE.get(self._last_dir) and len(dir_scores) > 1:
+            sorted_dirs = sorted(dir_scores, key=dir_scores.get, reverse=True)
+            for alt in sorted_dirs:
+                if alt != _OPPOSITE.get(self._last_dir):
+                    best_dir = alt
+                    break
+
+        return best_dir
+
+    def _explore(self) -> str:
+        """Direction d'exploration — choisit la direction avec le plus d'inconnu."""
+        d = self._best_explore_direction()
+        self._last_dir = d
+        return d
 
     def _spiral_fallback(self) -> str:
         """Spirale de fallback si la grid ne révèle pas de zone inexplorée."""
@@ -538,6 +536,11 @@ class ExplorerAgent(BaseAgent):
         self._pos = pos
         self._energy = energy
         self._zone = pos.get("zone", self._zone)
+
+        # Track position history pour détection de boucle
+        self._pos_history.append((pos["x"], pos["y"]))
+        if len(self._pos_history) > 12:
+            self._pos_history.pop(0)
 
         bar = self._bar(energy)
         logger.info(
@@ -605,6 +608,8 @@ class ExplorerAgent(BaseAgent):
         else:
             # ⚠️ PAS DE REFILL — cette île ne recharge pas
             self._bad_islands.add((ix, iy))
+            # AUSSI retirer des refuel_islands si elle y était (faux positif de la DB)
+            self._refuel_islands.discard((ix, iy))
             logger.warning(
                 "⚠️ ÎLE (%s,%s) PAS DE REFILL (energy %s→%s) — BLACKLISTÉE (%s bad, %s good)",
                 ix, iy, self._energy_before_move, energy,
@@ -616,31 +621,11 @@ class ExplorerAgent(BaseAgent):
                 self._path_reason = ""
                 logger.info("🔄 Recherche d'une autre île pour fuel...")
 
-            # Nouvelle île → programmer validation vers une île confirmée
+            # Nouvelle île trouvée — PAS de validation immédiate !
+            # La validation se fait automatiquement quand le bot revient
+            # sur une île confirmée pour le fuel (côté API: validateDiscoveries)
             self._islands_found += 1
-            logger.info("🆕 ÎLE #%s (%s,%s) — retour pour validation", self._islands_found, ix, iy)
-            self._schedule_validation(ix, iy)
-
-    def _schedule_validation(self, ix: int, iy: int) -> None:
-        """Programme un retour vers l'île CONFIRMÉE (refuel) la plus proche pour valider."""
-        # Utiliser les îles confirmées (pas la DB) — seules celles-ci valident les découvertes
-        target = None
-        best_dist = 9999
-        for coords in self._refuel_islands:
-            d = _distance(ix, iy, coords[0], coords[1], self._zone)
-            if d < best_dist:
-                best_dist = d
-                target = {"x": coords[0], "y": coords[1]}
-        if not target:
-            target = HOME_POSITION
-
-        dist = _distance(ix, iy, target["x"], target["y"], self._zone)
-        # Seulement si on a assez d'énergie
-        if self._energy > dist + settings.energy_buffer:
-            self._set_path_to(target, "validate")
-            logger.info("🔙 Validation → (%s,%s) dist=%s", target["x"], target["y"], dist)
-        else:
-            logger.info("⚠️ Pas assez d'énergie pour valider — sera fait au prochain passage")
+            logger.info("🆕 ÎLE #%s (%s,%s) — sera validée au prochain refuel", self._islands_found, ix, iy)
 
     # ══════════════════════════════════════════════════════════════
     # ERROR & STRANDED

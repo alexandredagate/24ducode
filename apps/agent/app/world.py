@@ -30,7 +30,7 @@ MAX_CHUNK_SIZE: int = 128
 def _distance(x: int, y: int, tx: int, ty: int, zone: int) -> int:
     """Distance selon le modèle de mouvement réel."""
     from app.config import settings
-    if not settings.enable_diagonal or zone == 1:
+    if not settings.enable_diagonal:
         return abs(tx - x) + abs(ty - y)
     return max(abs(tx - x), abs(ty - y))
 
