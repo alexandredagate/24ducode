@@ -13,6 +13,7 @@ interface ShipPanelProps {
   onMove: (direction: Direction) => Promise<unknown>;
   onBuild: () => Promise<unknown>;
   onUpgrade: () => Promise<unknown>;
+  onGoTo: (x: number, y: number) => Promise<unknown>;
 }
 
 type DirectionKey = Direction | null;
@@ -45,11 +46,16 @@ export function ShipPanel({
   onMove,
   onBuild,
   onUpgrade,
+  onGoTo,
 }: ShipPanelProps) {
   const [moving, setMoving] = useState<Direction | null>(null);
   const [moveResult, setMoveResult] = useState<string | null>(null);
   const [upgrading, setUpgrading] = useState(false);
   const [upgradeResult, setUpgradeResult] = useState<string | null>(null);
+  const [goToX, setGoToX] = useState("");
+  const [goToY, setGoToY] = useState("");
+  const [goToSending, setGoToSending] = useState(false);
+  const [goToResult, setGoToResult] = useState<string | null>(null);
 
   async function handleMove(dir: Direction) {
     setMoving(dir);
@@ -198,6 +204,68 @@ export function ShipPanel({
         {moveResult && (
           <div className="mt-3 px-3 py-2 rounded-lg bg-zinc-900 text-zinc-300 text-xs font-mono">
             {moveResult}
+          </div>
+        )}
+      </div>
+
+      {/* Navigation automatique */}
+      <div className="rounded-xl bg-zinc-800 border border-zinc-700 p-5">
+        <h3 className="text-sm font-semibold text-zinc-300 mb-3">Cap automatique</h3>
+        <p className="text-xs text-zinc-500 mb-3">
+          Ordonnez au capitaine de naviguer vers des coordonnées précises.
+        </p>
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <label className="block text-xs text-zinc-400 mb-1">X</label>
+            <input
+              type="number"
+              value={goToX}
+              onChange={(e) => setGoToX(e.target.value)}
+              placeholder={currentPosition ? String(currentPosition.x) : "0"}
+              className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs text-zinc-400 mb-1">Y</label>
+            <input
+              type="number"
+              value={goToY}
+              onChange={(e) => setGoToY(e.target.value)}
+              placeholder={currentPosition ? String(currentPosition.y) : "0"}
+              className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <button
+            type="button"
+            disabled={goToSending || goToX === "" || goToY === ""}
+            onClick={async () => {
+              const x = Number(goToX);
+              const y = Number(goToY);
+              if (Number.isNaN(x) || Number.isNaN(y)) {
+                setGoToResult("Coordonnées invalides");
+                return;
+              }
+              setGoToSending(true);
+              setGoToResult(null);
+              try {
+                await onGoTo(x, y);
+                setGoToResult(`Cap fixé vers (${x}, ${y})`);
+              } catch (err) {
+                setGoToResult(`Erreur: ${err instanceof Error ? err.message : "inconnue"}`);
+              } finally {
+                setGoToSending(false);
+              }
+            }}
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            {goToSending ? "..." : "Go"}
+          </button>
+        </div>
+        {goToResult && (
+          <div className={`mt-2 px-3 py-2 rounded-lg text-xs font-mono ${
+            goToResult.startsWith("Erreur") ? "bg-red-950 border border-red-800 text-red-300" : "bg-zinc-900 text-zinc-300"
+          }`}>
+            {goToResult}
           </div>
         )}
       </div>

@@ -120,6 +120,10 @@ export default function Home() {
     return result;
   }
 
+  async function handleGoTo(x: number, y: number) {
+    return await emit("capitain:go-to", { x, y });
+  }
+
   if (!authenticated) {
     return <LoginForm onLogin={login} connected={connected} error={lastError} />;
   }
@@ -137,6 +141,7 @@ export default function Home() {
     onMove: handleMove,
     onBuild: handleShipBuild,
     onUpgrade: handleShipUpgrade,
+    onGoTo: handleGoTo,
   };
 
   return (
