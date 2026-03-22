@@ -38,14 +38,10 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
     const scene = new Scene(engine);
     scene.ambientColor = new Color3(0.05, 0.08, 0.15);
 
-    const DEFAULT_ALPHA = -Math.PI / 2;
-    const DEFAULT_BETA = Math.PI / 3.5;
-    const CAMERA_RESET_SPEED = 3.0;
-
     const camera = new ArcRotateCamera(
         'camera',
-        DEFAULT_ALPHA,
-        DEFAULT_BETA,
+        -Math.PI / 2,
+        Math.PI / 3.5,
         18,
         Vector3.Zero(),
         scene
@@ -61,27 +57,8 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
     camera.keysDown = [];
     camera.keysLeft = [];
     camera.keysRight = [];
-
-    // Auto-reset camera rotation when user releases pointer
-    let pointerDown = false;
-    canvas.addEventListener('pointerdown', () => { pointerDown = true; });
-    canvas.addEventListener('pointerup', () => { pointerDown = false; });
-    canvas.addEventListener('pointerleave', () => { pointerDown = false; });
-
-    scene.onBeforeRenderObservable.add(() => {
-        if (pointerDown) return;
-        const dt = scene.getEngine().getDeltaTime() / 1000;
-        const factor = Math.min(1, CAMERA_RESET_SPEED * dt);
-
-        // Lerp alpha back to default
-        let alphaDiff = DEFAULT_ALPHA - camera.alpha;
-        while (alphaDiff > Math.PI)  alphaDiff -= 2 * Math.PI;
-        while (alphaDiff < -Math.PI) alphaDiff += 2 * Math.PI;
-        camera.alpha += alphaDiff * factor;
-
-        // Lerp beta back to default
-        camera.beta += (DEFAULT_BETA - camera.beta) * factor;
-    });
+    camera.lowerBetaLimit = 0.2;
+    camera.upperBetaLimit = Math.PI / 2.2;
 
     // Soleil directionnel — éclairage principal chaud
     const sun = new DirectionalLight('sun', new Vector3(-1, -2, -1), scene);
@@ -135,8 +112,8 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
         throw err;
     }
 
-    let currentMapResult = createMap(scene, engine, map);
     let currentMeta: MapMeta | null = getMapMeta();
+    let currentMapResult = createMap(scene, engine, map, camera, currentMeta);
 
     // ─── Listen for server broadcasts ────────────────
     onBrokerEvent((data) => {
@@ -146,6 +123,7 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
     // ─── Resolve boat start position ─────────────────
     let startRow: number | null = null;
     let startCol: number | null = null;
+    let startZone = -1;
 
     if (serverAvailable && currentMeta) {
         // Strategy 1: ship:location (cached position from MongoDB — fast, no external API call)
@@ -154,6 +132,7 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
             const pos = serverToGrid(location.position.x, location.position.y, currentMeta);
             startRow = pos.row;
             startCol = pos.col;
+            if (location.position.zone != null) startZone = location.position.zone;
             console.log('[game] ship position from ship:location:', startRow, startCol);
         } catch {
             console.log('[game] no cached ship:location');
@@ -203,9 +182,10 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
         const controller = createBoatController(
             boat, currentMapResult.tileMeshes, map,
             startRow, startCol,
-            engine, scene,
+            engine, scene, camera,
             currentMeta,
         );
+        if (startZone >= 0) controller.zone = startZone;
 
         // Incremental map update when server broadcasts map:update
         let lastGridHash = '';
@@ -232,6 +212,9 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
             }
             if (data.energy != null) {
                 controller.energy = data.energy;
+            }
+            if (data.position.zone != null) {
+                controller.zone = data.position.zone;
             }
         });
 
