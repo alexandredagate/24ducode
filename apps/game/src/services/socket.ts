@@ -143,7 +143,7 @@ interface SocketResponse {
 }
 
 let socket: Socket | null = null;
-let accessToken: string | null = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjb2RpbmdnYW1lIiwic3ViIjoiNDEwYzhiNjQtOTEzZi00NmViLThiYzAtN2ExOTdjNGY1MDZkIiwicm9sZXMiOlsiVVNFUiJdfQ.hnkPxnsdQQFmwnggFKWfDRq5PPQrQ2wBkeqAYIFQklw';
+let accessToken: string | null = null;
 let refreshToken: string | null = null;
 let mapMeta: MapMeta | null = null;
 
@@ -155,13 +155,10 @@ const mapUpdateListeners: MapUpdateCallback[] = [];
 const brokerEventListeners: BrokerEventCallback[] = [];
 const shipPositionListeners: ShipPositionCallback[] = [];
 
-export function connect(): Socket {
-  if (socket) return socket;
+export async function connect(): Promise<Socket> {
+  if (socket?.connected) return socket;
 
-  socket = io(SERVER_URL, {
-    transports: ['websocket'],
-    auth: accessToken ? { token: accessToken } : undefined,
-  });
+  socket = io(SERVER_URL, { transports: ['websocket'] });
 
   socket.on('map:update', (data: SocketResponse) => {
     if (data.status === 'ok' && data.data) {
@@ -176,6 +173,13 @@ export function connect(): Socket {
 
   socket.on('broker:event', (data: unknown) => {
     for (const cb of brokerEventListeners) cb(data);
+  });
+
+  // Wait for the socket to actually connect before returning
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Socket connection timed out')), 10_000);
+    socket!.on('connect', () => { clearTimeout(timeout); resolve(); });
+    socket!.on('connect_error', (err) => { clearTimeout(timeout); reject(err); });
   });
 
   return socket;
@@ -218,9 +222,7 @@ function sendCommand<T>(command: string, payload?: Record<string, unknown>): Pro
     };
 
     socket.on('response', handler);
-    const msg = payload ? { command, payload } : { command };
-    if (accessToken) (msg as Record<string, unknown>).accessToken = accessToken;
-    socket.emit('message', msg);
+    socket.emit('message', payload ? { command, payload } : { command });
   });
 }
 
@@ -228,8 +230,8 @@ export function getMapMeta(): MapMeta | null {
   return mapMeta;
 }
 
-export async function login(codingGameId: string): Promise<AuthTokens> {
-  const tokens = await sendCommand<AuthTokens>('auth:login', { codingGameId });
+export async function login(pin: string): Promise<AuthTokens> {
+  const tokens = await sendCommand<AuthTokens>('auth:login', { pin });
   accessToken = tokens.accessToken;
   refreshToken = tokens.refreshToken;
   return tokens;

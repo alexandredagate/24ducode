@@ -97,7 +97,7 @@ export async function createScene(engine: Engine, canvas: HTMLCanvasElement): Pr
 
     let gridData;
     try {
-        connect();
+        await connect();
         const authenticated = await authenticatePlayer();
         if (authenticated) {
             serverAvailable = true;
