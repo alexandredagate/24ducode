@@ -297,6 +297,9 @@ class ExplorerAgent(BaseAgent):
             )
 
         if needs_fuel:
+            # Si on interrompt un ordre → on le reprendra après le refuel
+            if self._path_reason == "order" and self._current_order:
+                logger.info("⛽ Ordre en pause — refuel d'abord")
             self._set_path_to(nearest, reason)
             if self._path:
                 return self._path.pop(0)
@@ -582,6 +585,14 @@ class ExplorerAgent(BaseAgent):
                     logger.info("✅ VALIDATION effectuée sur île (%s,%s)", ix, iy)
                 self._path.clear()
                 self._path_reason = ""
+
+                # Si un ordre était en pause → reprendre le cap
+                if self._current_order:
+                    target = self._current_order.get("payload", {}).get("coordinates", {})
+                    tx, ty = target.get("x"), target.get("y")
+                    if tx is not None and ty is not None:
+                        logger.info("🎯 Ordre repris après refuel → (%s,%s)", tx, ty)
+                        self._set_path_to({"x": tx, "y": ty}, "order")
 
             # Economy tick
             if self._island_visits % ECONOMY_TICK_EVERY == 0:
