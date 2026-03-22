@@ -1,12 +1,12 @@
 import { ArcRotateCamera, Color3, CubeTexture, DirectionalLight, HemisphericLight, MeshBuilder, Scene, StandardMaterial, Texture, Vector3, type Engine } from "babylonjs";
-import { parseMap, TileType } from "../utils/parse-map";
+import { TileType } from "../utils/parse-map";
 import { createMap } from "../utils/create-map";
 import { createBoat } from "../utils/boat";
 import { createBoatController } from "../utils/boat-controller";
 import {
     connect, requestMapGrid, onMapUpdate, onBrokerEvent, onShipPosition,
     login, buildShip, getShipLocation, getShipNextLevel,
-    getMapMeta, type MapMeta,
+    type MapMeta,
 } from "../services/socket";
 import { serverGridToGameMap, serverToGrid, buildConfirmedSet } from "../services/map-converter";
 

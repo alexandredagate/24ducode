@@ -1,5 +1,6 @@
 import type { GameMap, TileCell, TileType } from '../utils/parse-map';
-import type { MapGridData, MapMeta } from './socket';
+import type { MapGridData } from './socket';
+export type { MapMeta } from './socket';
 
 /**
  * Converts the server grid to a GameMap.

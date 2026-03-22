@@ -1,0 +1,23 @@
+FROM --platform=linux/amd64 node:20-alpine AS build
+WORKDIR /app
+
+COPY package.json package-lock.json turbo.json ./
+COPY apps/game/package.json ./apps/game/
+COPY packages/ ./packages/
+
+RUN npm ci && npm install --no-save @rolldown/binding-linux-x64-musl lightningcss-linux-x64-musl
+
+COPY apps/game ./apps/game
+
+RUN npx turbo run build --filter=game
+
+# --- Serve static files ---
+FROM --platform=linux/amd64 node:20-alpine
+WORKDIR /app
+
+RUN npm i -g serve
+
+COPY --from=build /app/apps/game/dist ./dist
+
+EXPOSE 3002
+CMD ["serve", "-s", "dist", "-l", "3002"]

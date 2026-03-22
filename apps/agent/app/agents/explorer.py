@@ -1,4 +1,3 @@
-
 """ExplorerAgent — agent d'exploration autonome.
 
 Algorithme SIMPLE et FIABLE :
@@ -98,6 +97,9 @@ class ExplorerAgent(BaseAgent):
         # Îles testées qui NE rechargent PAS (éviter de retourner dessus pour fuel)
         self._bad_islands: set[tuple[int, int]] = set()
         self._energy_before_move: int = 0
+        # Cellules bloquées (zone boundary) — exclues de l'exploration
+        self._blocked_cells: set[tuple[int, int]] = set()
+        self._last_move_dir: str = ""  # direction du dernier move envoyé
         # Economy
         self._marketplace: bool = False
         self._primary_resource: str | None = None
@@ -113,17 +115,17 @@ class ExplorerAgent(BaseAgent):
         await self._refresh_map_grid()
 
         while True:
-            if self.world:
-                await self.world.refresh()
-
-            # Refresh la grid toutes les 10 moves
+            # Refresh DB et grid seulement toutes les 30 moves (pas chaque tick)
             self._grid_refresh_counter += 1
-            if self._grid_refresh_counter >= 10:
+            if self._grid_refresh_counter >= 30:
                 self._grid_refresh_counter = 0
+                if self.world:
+                    await self.world.refresh()
                 await self._refresh_map_grid()
 
             direction = self._decide()
             self._energy_before_move = self._energy
+            self._last_move_dir = direction
 
             resp = await self._send("ship:move", {"direction": direction})
             if resp.get("status") != "ok":
@@ -133,10 +135,11 @@ class ExplorerAgent(BaseAgent):
             self._moves += 1
             await self._on_move(direction, resp["data"])
 
-            if self._moves % 25 == 0:
+            if self._moves % 50 == 0:
                 self._log_status()
 
-            await asyncio.sleep(max(self._ship_speed / 1000.0, 1.0) + 0.3)
+            # Délai = speed du ship (pas de floor à 1s, pas de marge inutile)
+            await asyncio.sleep(self._ship_speed / 1000.0)
 
     # ══════════════════════════════════════════════════════════════
     # INIT
@@ -193,12 +196,17 @@ class ExplorerAgent(BaseAgent):
             return fuel_dir
 
         # ── PATH TERMINÉ MAIS PAS SUR SAND → aller sur l'île adjacente ──
-        if not self._path and self._path_reason and self._pos and not is_island(self._pos):
-            step = self._step_toward_nearest_sand()
-            if step:
-                logger.info("🏝️ Pas encore sur l'île — step vers SAND adjacent: %s", step)
-                return step
-            # Pas de SAND adjacent → clear et explorer
+        # (seulement pour fuel/validate, PAS pour zone_escape ou explore)
+        if not self._path and self._path_reason in ("fuel_emergency", "fuel_proactive", "fuel_guard", "validate"):
+            if self._pos and not is_island(self._pos):
+                step = self._step_toward_nearest_sand()
+                if step:
+                    logger.info("🏝️ Pas encore sur l'île — step vers SAND adjacent: %s", step)
+                    return step
+            self._path_reason = ""
+
+        # ── PATH TERMINÉ (autre raison) → clear ──
+        if not self._path and self._path_reason:
             self._path_reason = ""
 
         # ── PATH EN COURS (validation, retreat, etc.) ──
@@ -413,6 +421,9 @@ class ExplorerAgent(BaseAgent):
             for dx in range(-radius, radius + 1):
                 for dy in [-radius, radius] if abs(dx) < radius else range(-radius, radius + 1):
                     nx, ny = px + dx, py + dy
+                    # Skip les cellules bloquées (zone boundary)
+                    if (nx, ny) in self._blocked_cells:
+                        continue
                     cell = self._grid_cell(nx, ny)
                     if cell != "0" and cell != "?":
                         continue  # déjà exploré
@@ -536,7 +547,7 @@ class ExplorerAgent(BaseAgent):
 
         self.memory.mark_island(pos)
         self._spiral_center = (ix, iy)
-        self._grid_refresh_counter = 10  # force grid refresh
+        self._grid_refresh_counter = 30  # force refresh au prochain tick
 
         energy = data["energy"]
         # Refill OK si : énergie a augmenté OU on était déjà plein (max = pas de refill visible)
@@ -621,11 +632,49 @@ class ExplorerAgent(BaseAgent):
             return
 
         if "zone" in error.lower() and "accéder" in error.lower():
-            logger.info("🚧 Zone boundary — demi-tour")
             self._path.clear()
             self._path_reason = ""
-            # Forcer une nouvelle direction de spirale
-            self._spiral_angle += math.pi
+
+            if self._pos and self._last_move_dir:
+                dx, dy = _DIR_VECTORS.get(self._last_move_dir, (0, 0))
+                px, py = self._pos["x"], self._pos["y"]
+                # Blacklister un MUR de cellules perpendiculaire à la direction bloquée
+                # + les cellules en profondeur derrière le mur
+                for depth in range(1, 10):
+                    for lateral in range(-15, 16):
+                        if dx != 0:  # direction E/W → mur vertical
+                            bx = int(px + dx * depth)
+                            by = int(py + lateral)
+                        else:  # direction N/S → mur horizontal
+                            bx = int(px + lateral)
+                            by = int(py + dy * depth)
+                        self._blocked_cells.add((bx, by))
+                logger.info(
+                    "🚧 Zone boundary dir=%s — mur bloqué (total %s blocked cells)",
+                    self._last_move_dir, len(self._blocked_cells),
+                )
+
+            # Tenter un upgrade pour débloquer la zone
+            nr = await self._send("ship:next-level")
+            if nr.get("status") == "ok" and nr.get("data"):
+                nlid = nr["data"].get("level", {}).get("id")
+                if nlid and nlid > self._ship_level:
+                    ur = await self._send("ship:upgrade", {"level": nlid})
+                    if ur.get("status") == "ok":
+                        self._ship_level = nlid
+                        self._blocked_cells.clear()
+                        logger.info("⬆️ UPGRADE level %s — zones débloquées!", nlid)
+                        return
+                    logger.info("⬆️ Upgrade échoué — pas assez de ressources")
+
+            # Forcer un move latéral pour sortir de la boundary
+            if self._pos:
+                laterals = [d for d in _dirs() if d != self._last_move_dir and d != _OPPOSITE.get(self._last_move_dir, "")]
+                if laterals:
+                    self._path = [random.choice(laterals)] * 3  # 3 pas latéraux
+                    self._path_reason = "zone_escape"
+                    logger.info("↔️ Escape latéral: %s", self._path)
+
             await asyncio.sleep(2.0)
             return
 

@@ -7,50 +7,33 @@
 
 ## API
 
-Fichier de config : `fly.toml` (racine du projet)
+Fichier de config : `fly.api.toml`
 
 ```bash
-# Premier deploiement (creation de l'app)
-fly launch --no-deploy
-
-# Configurer les secrets
-fly secrets set \
-  MONGO_URI="mongodb+srv://..." \
-  MONGO_DB="ek24-database" \
-  ACCESS_SECRET="change-me" \
-  REFRESH_SECRET="change-me" \
-  ACCESS_TTL="15m" \
-  REFRESH_TTL="2d"
-
-# Deployer
-fly deploy
+fly deploy --config fly.api.toml
 ```
 
-URL : https://24ducode-api.fly.dev
-
-**Logs :**
-```bash
-fly logs -a 24ducode-api
-```
+URL : https://24ducode-api.fly.dev | Logs : `fly logs -a 24ducode-api`
 
 ## Dashboard
 
-Fichier de config : `apps/dash/fly.toml`
+Fichier de config : `fly.dash.toml`
 
 ```bash
-# Premier deploiement (creation de l'app)
-fly launch --config apps/dash/fly.toml --no-deploy
-
-# Deployer (l'URL de l'API est bakee dans le build Next.js via fly.toml build.args)
-fly deploy --config apps/dash/fly.toml
+fly deploy --config fly.dash.toml
 ```
 
-URL : https://24ducode-dash.fly.dev
+URL : https://24ducode-dash.fly.dev | Logs : `fly logs -a 24ducode-dash`
 
-**Logs :**
+## Game (Vite + Babylon.js)
+
+Fichier de config : `fly.game.toml`
+
 ```bash
-fly logs -a 24ducode-dash
+fly deploy --config fly.game.toml
 ```
+
+URL : https://24ducode-game.fly.dev | Logs : `fly logs -a 24ducode-game`
 
 ## Game (Vite + Babylon.js)
 
