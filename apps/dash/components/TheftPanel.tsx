@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { ResourceType, Theft } from "../hooks/useSocket";
 
 interface TheftPanelProps {
@@ -30,8 +30,20 @@ export function TheftPanel({ thefts, playerMoney, onAttack, onRefresh }: TheftPa
   const [attacking, setAttacking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  const [now, setNow] = useState(() => Date.now());
   const pending = thefts.filter((t) => t.status === "PENDING");
   const resolved = thefts.filter((t) => t.status !== "PENDING");
+
+  useEffect(() => {
+    if (pending.length === 0) return;
+    const hasLastMinute = pending.some((t) => {
+      const end = parseISO(t.resolveAt);
+      return end - now <= 60_000 && end - now > 0;
+    });
+    const delay = hasLastMinute ? 1000 : 60_000;
+    const interval = setInterval(() => setNow(Date.now()), delay);
+    return () => clearInterval(interval);
+  }, [pending.length, pending, now]);
 
   async function handleAttack() {
     if (moneySpent <= 0) return;
@@ -57,8 +69,19 @@ export function TheftPanel({ thefts, playerMoney, onAttack, onRefresh }: TheftPa
     }
   }
 
-  function isResolved(theft: Theft) {
-    return new Date(theft.resolveAt) <= new Date();
+  function parseISO(iso: string) {
+    // Truncate microseconds to milliseconds for browser compatibility
+    return new Date(iso.replace(/(\.\d{3})\d+/, "$1")).getTime();
+  }
+
+  function formatCountdown(resolveAt: string) {
+    const end = parseISO(resolveAt);
+    const remaining = Math.max(0, Math.floor((end - now) / 1000));
+    if (remaining <= 0) return "Résolution imminente";
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    if (m === 0) return `${s}s`;
+    return `${m}m`;
   }
 
   return (
@@ -154,7 +177,7 @@ export function TheftPanel({ thefts, playerMoney, onAttack, onRefresh }: TheftPa
                   </span>
                 </div>
                 <span className="text-xs text-yellow-600">
-                  {isResolved(theft) ? "Résolution imminente" : `Résolution à ${formatDate(theft.resolveAt)}`}
+                  {formatCountdown(theft.resolveAt)}
                 </span>
               </div>
               <div className="flex items-center gap-4 mt-2 text-sm">
