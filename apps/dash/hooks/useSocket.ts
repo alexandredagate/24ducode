@@ -104,6 +104,8 @@ interface UseSocketReturn {
   taxes: Tax[];
   marketOffers: MarketOffer[];
   storageInfo: StorageInfo | null;
+  mapGrid: MapGrid | null;
+  refreshMapGrid: () => Promise<void>;
   brokerEvents: BrokerEvent[];
   clearBrokerEvents: () => void;
   refreshAll: () => void;
