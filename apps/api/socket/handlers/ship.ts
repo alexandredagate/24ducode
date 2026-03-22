@@ -35,32 +35,33 @@ export async function handleShip(
         );
       }
 
-      // Énergie avant le move (pour détecter un refill)
+      // Énergie avant le move + appel API en parallèle
       let t1 = performance.now();
-      const prevState = await getShipPosition(codingGameId);
+      const [prevState, data] = await Promise.all([
+        getShipPosition(codingGameId),
+        moveShip(codingGameId, direction),
+      ]);
       const energyBefore = prevState?.energy ?? 0;
-      const tGetPos = (performance.now() - t1).toFixed(1);
-
-      t1 = performance.now();
-      const data = await moveShip(codingGameId, direction);
+      const tGetPos = "||"; // parallel
       const tMoveApi = (performance.now() - t1).toFixed(1);
 
-      // Si le bateau arrive sur SAND et que l'énergie a AUGMENTÉ → refuel confirmé
-      if (data.position?.type === "SAND" && data.energy > energyBefore) {
-        await markConfirmedRefuel(data.position.x, data.position.y);
-      }
-
       // Vérifier si la position AVANT upsert est déjà KNOWN
+      t1 = performance.now();
       let wasKnownBeforeUpsert = false;
       if (data.position?.type === "SAND") {
         const cellBefore = await getCellAt(data.position.x, data.position.y);
         wasKnownBeforeUpsert = cellBefore?.discoveryStatus === "KNOWN";
       }
 
-      t1 = performance.now();
+      // Upsert cells
       const cellsToSave: Cell[] = [...(data.discoveredCells ?? [])];
       if (data.position) cellsToSave.push(data.position);
       await upsertCells(cellsToSave);
+
+      // Si le bateau arrive sur SAND et que l'énergie a AUGMENTÉ → refuel confirmé (fire-and-forget)
+      if (data.position?.type === "SAND" && data.energy > energyBefore) {
+        markConfirmedRefuel(data.position.x, data.position.y).catch(() => {});
+      }
       const tUpsert = (performance.now() - t1).toFixed(1);
 
       // Valider les découvertes seulement si on arrive sur une île qui
@@ -86,15 +87,6 @@ export async function handleShip(
         }
       }
 
-      // saveShipPosition + map:update en parallèle (non-bloquant pour la réponse)
-      t1 = performance.now();
-      const savePromise = saveShipPosition(codingGameId, enrichedPosition, data.energy);
-
-      // map:update en arrière-plan (le dashboard n'a pas besoin de ça en temps réel)
-      const gridPromise = getMapGrid().then((mapGrid) => {
-        io.emit("map:update", { command: "map:update", status: "ok", data: mapGrid });
-      });
-
       // Broadcast position immédiatement (léger, pas de DB)
       io.emit("ship:position", {
         position: enrichedPosition,
@@ -102,8 +94,15 @@ export async function handleShip(
         ...(validated > 0 && { validated }),
       });
 
-      await Promise.all([savePromise, gridPromise]);
+      // saveShipPosition en parallèle (bloquant — rapide, un seul upsert)
+      t1 = performance.now();
+      await saveShipPosition(codingGameId, enrichedPosition, data.energy);
       const tAfter = (performance.now() - t1).toFixed(1);
+
+      // map:update en arrière-plan — fire-and-forget (ne bloque PAS la réponse)
+      getMapGrid().then((mapGrid) => {
+        io.emit("map:update", { command: "map:update", status: "ok", data: mapGrid });
+      }).catch((err) => console.error("[map:update] background error:", err));
 
       const tTotal = (performance.now() - t0).toFixed(1);
       console.log(`[perf:move] total=${tTotal}ms | getPos=${tGetPos} moveApi=${tMoveApi} upsert=${tUpsert} after=${tAfter}`);

@@ -60,9 +60,13 @@ class WorldMap:
     # ------------------------------------------------------------------
 
     async def refresh(self) -> None:
-        cells = await self._db.find_many("cells", {}, limit=100_000)
+        # Ne charger que les îles (SAND) — les cellules SEA ne sont pas
+        # utilisées par l'agent (la grid vient de l'API map:grid)
+        cells = await self._db.find_many(
+            "cells", {"type": "SAND"}, limit=100_000,
+        )
         self._cells = {(c["x"], c["y"]): c for c in cells}
-        self._all_islands = [c for c in cells if _is_any_island(c)]
+        self._all_islands = list(cells)
         self._known_islands = [c for c in cells if _is_known(c)]
 
     async def get_ship_state(self, coding_game_id: str) -> dict | None:
